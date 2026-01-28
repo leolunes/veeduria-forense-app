@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+  <title>Veeduría Forense - SECOP II</title>
+  <meta name="description" content="App ciudadana para acompañar ejecución y liquidación de contratos de obra pública (SECOP II) con enfoque preventivo/detectivo de auditoría forense." />
+
+  <!-- PWA -->
+  <link rel="manifest" href="./manifest.json" />
+  <meta name="theme-color" content="#111111" />
+  <link rel="icon" href="./assets/icon-192.svg" />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1 id="appTitle">Metodología</h1>
+      <div id="appSubtitle" class="small"></div>
+      <div id="offlineBadge" class="offlineBadge hidden">Modo offline</div>
+    </div>
+    <div class="actions">
+      <button id="btnExportActive">Exportar caso (JSON + fotos)</button>
+      <button id="btnExportAll">Exportar todo (JSON + fotos)</button>
+      <button id="btnReset" class="danger">Reiniciar</button>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="tab-metodologia">Metodología</button>
+    <button class="tab" data-tab="tab-documentos">Documentos mínimos</button>
+    <button class="tab" data-tab="tab-evidencias">Evidencias</button>
+    <button class="tab" data-tab="tab-riesgo">Riesgo del caso</button>
+    <button class="tab" data-tab="tab-peticion">Derecho de petición</button>
+    <button class="tab" data-tab="tab-informes">Informes por destinatario</button>
+    <button class="tab" data-tab="tab-historial">Historial</button>
+  </nav>
+
+  <main class="grid">
+    <aside class="sidebar">
+
+      <h2>Perfil del veedor</h2>
+      <div class="small">Este nombre se guarda y quedará en el historial de cambios.</div>
+      <label>Nombre del veedor / usuario</label>
+      <input id="userName" placeholder="Ej: Juan Pérez (Veeduría X)" />
+      <button id="btnSaveUser">Guardar nombre</button>
+
+      <hr />
+
+      <h2>Casos</h2>
+      <div class="small">
+        Puedes guardar múltiples contratos y cambiar entre ellos.
+      </div>
+
+      <label>Caso activo</label>
+      <select id="caseSelect"></select>
+
+      <div class="row">
+        <button id="btnNewCase">Nuevo caso</button>
+        <button id="btnDuplicateCase">Duplicar</button>
+        <button id="btnDeleteCase" class="danger">Eliminar</button>
+      </div>
+
+      <div class="row">
+        <button id="btnImportCase">Importar/Restaurar JSON</button>
+        <input id="fileImport" type="file" accept="application/json" style="display:none" />
+      </div>
+
+      <hr />
+
+      <h2>Fases</h2>
+      <ul id="phaseList"></ul>
+
+      <h2>SECOP II (datos del caso)</h2>
+
+      <label>Enlace del proceso (SECOP II)</label>
+      <input id="secopUrl" placeholder="https://..." />
+
+      <label>Entidad</label>
+      <input id="secopEntidad" placeholder="Nombre de la entidad" />
+
+      <label>Número/ID del proceso</label>
+      <input id="secopId" placeholder="Ej: LP-001-2026" />
+
+      <label>Municipio / Departamento</label>
+      <input id="secopUbicacion" placeholder="Ej: Floridablanca, Santander (o cualquier municipio de Colombia)" />
+
+      <label>Tipo de obra</label>
+      <select id="tipoInfra"></select>
+
+      <button id="btnSaveCase">Guardar caso</button>
+
+      <h2>Bitácora</h2>
+      <label>Buscar en bitácora</label>
+      <input id="searchLogs" placeholder="Filtrar por texto (ej: acta, pago, prórroga...)" />
+
+      <div class="small">
+        Formato sugerido: <b>YYYY-MM-DD</b> — qué pasó — fuente (SECOP II / acta / foto).
+      </div>
+      <textarea id="logText" placeholder="Ej: 2026-01-27 — Acta de inicio publicada — enlace SECOP II..."></textarea>
+
+      <div class="row">
+        <button id="btnAddLog">Agregar a bitácora</button>
+        <button id="btnAddLogPhoto">Adjuntar foto a bitácora</button>
+        <input id="logPhotoInput" type="file" accept="image/*" multiple style="display:none" />
+      </div>
+
+      <ul id="logList" class="small"></ul>
+
+      <h2>Hallazgos</h2>
+      <label>Buscar en hallazgos</label>
+      <input id="searchHallazgos" placeholder="Filtrar por texto (hecho, evidencia, solicitud...)" />
+
+      <div class="small">
+        Hechos verificables (sin acusaciones). Mínimo: Fase, Hecho, Evidencia y Solicitud.
+      </div>
+
+      <label>Fase</label>
+      <select id="hallazgoFase">
+        <option value="">— Selecciona —</option>
+        <option value="Planeación">Planeación</option>
+        <option value="Ejecución">Ejecución</option>
+        <option value="Cambios">Cambios (otrosíes/prórrogas)</option>
+        <option value="Pagos">Pagos</option>
+        <option value="Cierre/Liquidación">Cierre/Liquidación</option>
+      </select>
+
+      <label>Severidad</label>
+      <select id="hallazgoSeveridad">
+        <option value="Observación">Observación</option>
+        <option value="Alerta">Alerta</option>
+        <option value="Alerta crítica">Alerta crítica</option>
+      </select>
+
+      <label>Hecho observado (qué pasó)</label>
+      <textarea id="hallazgoHecho" placeholder="Describe el hecho de manera concreta."></textarea>
+
+      <label>Evidencia (enlace SECOP II / archivo / foto)</label>
+      <input id="hallazgoEvidencia" placeholder="https://... o nombre del soporte" />
+
+      <label>Impacto / riesgo (por qué importa)</label>
+      <textarea id="hallazgoImpacto" placeholder="Ej: Riesgo de sobrecosto, calidad, seguridad, retraso..."></textarea>
+
+      <label>Solicitud concreta (qué se pide)</label>
+      <textarea id="hallazgoSolicitud" placeholder="Ej: Solicito publicar acta X; entregar soportes; aclarar medición..."></textarea>
+
+      <div class="row">
+        <button id="btnAddHallazgo">Agregar hallazgo</button>
+        <button id="btnClearHallazgo" class="danger">Limpiar</button>
+      </div>
+
+      <div class="row">
+        <button id="btnAddHallazgoPhotos">Adjuntar fotos (al crear)</button>
+        <input id="hallazgoPhotosInput" type="file" accept="image/*" multiple style="display:none" />
+      </div>
+      <div class="small" id="hallazgoPhotosHint">0 foto(s) seleccionada(s) para adjuntar al próximo hallazgo.</div>
+
+      <div class="small" style="margin-top:10px;">
+        <b>Lista de hallazgos (últimos 6)</b>
+      </div>
+      <ul id="hallazgoList" class="small"></ul>
+    </aside>
+
+    <section class="content">
+
+      <!-- TAB: METODOLOGIA -->
+      <section id="tab-metodologia" class="tabPanel active">
+        <div id="phaseView">
+          <p>Cargando metodología...</p>
+        </div>
+
+        <hr />
+
+        <h2>Informe preliminar (auto)</h2>
+        <div class="small">Se actualiza con el caso, checklist, bitácora, documentos y hallazgos.</div>
+        <textarea id="reportBox" readonly></textarea>
+        <div class="row">
+          <button id="btnCopyReport">Copiar informe</button>
+          <button id="btnDownloadReportTxt">Descargar informe (.txt)</button>
+          <button id="btnDownloadHallazgosCsv">Descargar hallazgos (.csv)</button>
+          <button id="btnExportPDF">Exportar PDF (con anexos)</button>
+        </div>
+        <div class="small">
+          Nota: el PDF se genera sin servidor: se abre una ventana lista para imprimir. En Chrome/Edge elige “Guardar como PDF”.
+        </div>
+      </section>
+
+      <!-- TAB: DOCUMENTOS -->
+      <section id="tab-documentos" class="tabPanel">
+        <h2>Documentos mínimos por tipo de obra</h2>
+        <div class="small">
+          Marca el estado de cada documento. Adjunta fotos directamente por documento (quedan offline).
+        </div>
+
+        <label>Buscar en documentos</label>
+        <input id="searchDocs" placeholder="Filtrar por texto (ej: acta, póliza, interventoría, planos...)" />
+
+        <div id="docsView"></div>
+        <div class="row">
+          <button id="btnDownloadDocsCsv">Descargar documentos (.csv)</button>
+        </div>
+      </section>
+
+      <!-- TAB: EVIDENCIAS -->
+      <section id="tab-evidencias" class="tabPanel">
+        <h2>Evidencias (fotos) – Offline</h2>
+        <div class="small">
+          Las fotos se guardan en el dispositivo (IndexedDB) y quedan disponibles sin internet. También se incluyen en el export JSON para restaurar en otro equipo (puede crecer el archivo).
+        </div>
+
+        <label>Buscar evidencias</label>
+        <input id="searchEvidence" placeholder="Filtrar por nombre, nota, id relacionado..." />
+
+        <div class="row">
+          <button id="btnAddEvidenceGeneral">Agregar evidencias (sin vínculo)</button>
+          <input id="evidenceGeneralInput" type="file" accept="image/*" multiple style="display:none" />
+          <button id="btnExportEvidenceCsv">Descargar listado (.csv)</button>
+        </div>
+
+        <div id="evidenceView"></div>
+      </section>
+
+      <!-- TAB: RIESGO -->
+      <section id="tab-riesgo" class="tabPanel">
+        <h2>Riesgo del caso (calculado)</h2>
+        <div class="small">
+          El puntaje se calcula con: severidad de hallazgos + documentos faltantes + avance de verificación.
+        </div>
+        <div id="riskView"></div>
+        <div class="row">
+          <button id="btnDownloadRiskTxt">Descargar resumen de riesgo (.txt)</button>
+        </div>
+      </section>
+
+      <!-- TAB: PETICION -->
+      <section id="tab-peticion" class="tabPanel">
+        <h2>Derecho de petición (generador)</h2>
+        <div class="small">
+          Genera un texto formal con base en el caso y hallazgos. Recomendación: adjunta el export JSON/CSV como soporte.
+        </div>
+
+        <label>Destinatario</label>
+        <select id="peticionDest">
+          <option value="Entidad">Entidad contratante</option>
+          <option value="Interventoria">Interventoría / Supervisión</option>
+          <option value="Personeria">Personería</option>
+          <option value="Contraloria">Contraloría</option>
+          <option value="Procuraduria">Procuraduría</option>
+        </select>
+
+        <label>Filtrar hallazgos a incluir</label>
+        <select id="peticionFiltro">
+          <option value="all">Incluir todos</option>
+          <option value="alertas">Incluir solo Alertas y Alertas críticas</option>
+          <option value="criticas">Incluir solo Alertas críticas</option>
+        </select>
+
+        <label>Peticiones / solicitudes específicas (adicionales)</label>
+        <textarea id="peticionExtra" placeholder="Ej: Solicito copia de acta de reinicio, informes de interventoría del mes X, soportes de pruebas, etc."></textarea>
+
+        <div class="row">
+          <button id="btnGenPeticion">Generar derecho de petición</button>
+          <button id="btnCopyPeticion">Copiar</button>
+          <button id="btnDownloadPeticionTxt">Descargar (.txt)</button>
+        </div>
+
+        <textarea id="peticionBox" readonly></textarea>
+      </section>
+
+      <!-- TAB: INFORMES -->
+      <section id="tab-informes" class="tabPanel">
+        <h2>Informes por destinatario</h2>
+        <div class="small">
+          Cambia el enfoque del informe según el destinatario (Entidad / Contraloría / Personería / Procuraduría).
+        </div>
+
+        <label>Destinatario</label>
+        <select id="informeDest">
+          <option value="Entidad">Entidad contratante</option>
+          <option value="Interventoria">Interventoría / Supervisión</option>
+          <option value="Personeria">Personería</option>
+          <option value="Contraloria">Contraloría</option>
+          <option value="Procuraduria">Procuraduría</option>
+        </select>
+
+        <label>Enfoque</label>
+        <select id="informeEnfoque">
+          <option value="tecnico">Técnico–documental (hechos/evidencia)</option>
+          <option value="control">Control social y transparencia</option>
+          <option value="riesgo">Riesgos e impacto (plazo/costo/calidad)</option>
+        </select>
+
+        <div class="row">
+          <button id="btnGenInforme">Generar informe</button>
+          <button id="btnCopyInforme">Copiar</button>
+          <button id="btnDownloadInformeTxt">Descargar (.txt)</button>
+        </div>
+
+        <textarea id="informeBox" readonly></textarea>
+      </section>
+
+      <!-- TAB: HISTORIAL -->
+      <section id="tab-historial" class="tabPanel">
+        <h2>Historial de cambios</h2>
+        <div class="small">
+          Registro de cambios por usuario: qué se cambió, cuándo y en qué caso.
+        </div>
+
+        <label>Buscar en historial</label>
+        <input id="searchHistory" placeholder="Filtrar (usuario, acción, campo, texto...)" />
+
+        <div class="row">
+          <button id="btnExportHistoryCsv">Descargar historial (.csv)</button>
+          <button id="btnClearHistory" class="danger">Limpiar historial del caso</button>
+        </div>
+
+        <div id="historyView"></div>
+      </section>
+
+    </section>
+  </main>
+
+  <footer class="foot small">
+    <span>Guía ciudadana (auditoría forense preventiva/detectiva) - SECOP II · PWA Offline · Multi-caso · Fusión por Proceso ID · Evidencias offline · PDF con anexos</span>
+  </footer>
+
+  <!-- MODAL GALERÍA (Hallazgos / Documentos) -->
+  <div id="galleryModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modalCard">
+      <div class="modalHeader">
+        <div>
+          <div id="galleryTitle" class="modalTitle">Galería</div>
+          <div id="gallerySubtitle" class="small"></div>
+        </div>
+        <div class="row">
+          <button id="btnCloseGallery" class="danger">Cerrar</button>
+        </div>
+      </div>
+
+      <div class="modalBody">
+        <label>Buscar dentro de esta galería</label>
+        <input id="gallerySearch" placeholder="Filtrar por nombre o nota..." />
+        <div id="galleryContent" class="thumbGrid"></div>
+        <div id="galleryEmpty" class="small" style="margin-top:10px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
+

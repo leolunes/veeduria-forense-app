@@ -1,0 +1,191 @@
+{
+  "titulo": "Metodología de auditoría forense para veedurías ciudadanas en ejecución y liquidación (SECOP II)",
+  "version": "1.1",
+  "descripcion": "Guía ciudadana para registrar hechos verificables, evidencia y solicitudes durante ejecución y liquidación de contratos de infraestructura y obra pública en Colombia.",
+  "tipos_infraestructura": [
+    { "id": "vias", "nombre": "Vías y pavimentos" },
+    { "id": "acueducto", "nombre": "Acueductos" },
+    { "id": "alcantarillado", "nombre": "Alcantarillados" },
+    { "id": "parques", "nombre": "Parques y espacio público" },
+    { "id": "deportivos", "nombre": "Escenarios deportivos" },
+    { "id": "educativa", "nombre": "Infraestructura educativa" },
+    { "id": "social", "nombre": "Infraestructura social (comunitaria)" },
+    { "id": "taludes", "nombre": "Estabilización de taludes / obras geotécnicas" }
+  ],
+  "fases": [
+    {
+      "id": "EJEC",
+      "nombre": "Ejecución (seguimiento ciudadano)",
+      "objetivo": "Acompañar la ejecución verificando coherencia entre avances físicos, financieros y evidencias en SECOP II.",
+      "flag_keys": ["ejecucion", "calidad", "mediciones"],
+      "checklist_general": [
+        { "id": "ej_g_01", "texto": "Revisé el acta de inicio y fecha real de arranque", "evidencia": "Acta de inicio, cronograma aprobado" },
+        { "id": "ej_g_02", "texto": "Verifiqué cronograma (cumplimiento o soportes de cambios)", "evidencia": "Cronograma, actas de comité, informes" },
+        { "id": "ej_g_03", "texto": "Contrasté avance físico vs. avance financiero", "evidencia": "Actas parciales, pagos, informes" },
+        { "id": "ej_g_04", "texto": "Revisé informes de interventoría/supervisión del período", "evidencia": "Informes mensuales con anexos" },
+        { "id": "ej_g_05", "texto": "Verifiqué control de calidad/ensayos para ítems críticos", "evidencia": "Ensayos laboratorio / certificados" }
+      ],
+      "checklist_por_tipo": {
+        "vias": [
+          { "id": "ej_v_01", "texto": "Verifiqué ensayos de compactación/densidades (si aplica)", "evidencia": "Reporte de laboratorio / planillas" },
+          { "id": "ej_v_02", "texto": "Verifiqué ensayos de asfalto/concreto (según corresponda)", "evidencia": "Resultados de laboratorio / actas" }
+        ],
+        "acueducto": [
+          { "id": "ej_a_01", "texto": "Verifiqué pruebas hidráulicas / presión documentadas", "evidencia": "Protocolos de prueba y actas" }
+        ],
+        "alcantarillado": [
+          { "id": "ej_al_01", "texto": "Verifiqué pruebas de hermeticidad/pendientes/cámaras", "evidencia": "Actas y reportes técnicos" }
+        ],
+        "taludes": [
+          { "id": "ej_t_01", "texto": "Verifiqué soporte de diseño geotécnico y drenajes", "evidencia": "Memorias, planos, reportes" },
+          { "id": "ej_t_02", "texto": "Verifiqué registro de monitoreo/estabilidad (si aplica)", "evidencia": "Reportes, bitácora, instrumentación" }
+        ]
+      }
+    },
+    {
+      "id": "CAMB",
+      "nombre": "Cambios (otrosíes / prórrogas / adicionales)",
+      "objetivo": "Verificar trazabilidad, justificación y soportes de modificaciones del contrato.",
+      "flag_keys": ["cambios", "plazo_costos"],
+      "checklist_general": [
+        { "id": "cb_g_01", "texto": "Identifiqué todos los otrosíes/prórrogas/adiciones", "evidencia": "Otrosíes y actos administrativos" },
+        { "id": "cb_g_02", "texto": "La justificación del cambio está soportada técnicamente", "evidencia": "Estudios, informes, memorias" },
+        { "id": "cb_g_03", "texto": "Verifiqué impacto en valor/plazo y cronograma actualizado", "evidencia": "Actas, cronograma actualizado" }
+      ],
+      "checklist_por_tipo": {}
+    },
+    {
+      "id": "PAGO",
+      "nombre": "Pagos (soportes y coherencia)",
+      "objetivo": "Verificar que pagos y actas correspondan a avances reales y soportes de ejecución.",
+      "flag_keys": ["pagos", "soportes"],
+      "checklist_general": [
+        { "id": "pg_g_01", "texto": "Revisé actas parciales y cuentas de cobro", "evidencia": "Actas, facturas, cuentas, soportes" },
+        { "id": "pg_g_02", "texto": "Verifiqué que el pago corresponde a cantidades ejecutadas", "evidencia": "Planillas, mediciones, fotos, actas" },
+        { "id": "pg_g_03", "texto": "Verifiqué retenciones/descuentos y pólizas vigentes", "evidencia": "Pólizas, certificados, paz y salvos (si aplica)" }
+      ],
+      "checklist_por_tipo": {
+        "vias": [
+          { "id": "pg_v_01", "texto": "Verifiqué que las cantidades pagadas coinciden con longitudes/áreas/espesores", "evidencia": "Planillas, levantamiento simple, fotos" }
+        ],
+        "taludes": [
+          { "id": "pg_t_01", "texto": "Verifiqué que pagos se soportan con volúmenes reales y reportes geotécnicos", "evidencia": "Memorias, actas, fotografías" }
+        ]
+      }
+    },
+    {
+      "id": "LIQ",
+      "nombre": "Cierre y liquidación",
+      "objetivo": "Acompañar el cierre, recibo final y liquidación con soportes completos y saldos claros.",
+      "flag_keys": ["liquidacion", "saldos", "calidad"],
+      "checklist_general": [
+        { "id": "lq_g_01", "texto": "Revisé acta de terminación/recibo final", "evidencia": "Acta de recibo final, listado de pendientes" },
+        { "id": "lq_g_02", "texto": "Verifiqué entregables/as-built según aplique", "evidencia": "Planos as-built, manuales, actas" },
+        { "id": "lq_g_03", "texto": "Revisé acta de liquidación y saldos finales", "evidencia": "Acta de liquidación, cuentas finales" }
+      ],
+      "checklist_por_tipo": {
+        "acueducto": [
+          { "id": "lq_a_01", "texto": "Verifiqué pruebas finales y actas de puesta en operación", "evidencia": "Actas, protocolos, entregables" }
+        ],
+        "taludes": [
+          { "id": "lq_t_01", "texto": "Verifiqué manual de mantenimiento/monitoreo post-obra (si aplica)", "evidencia": "Manual, recomendaciones, acta" }
+        ]
+      }
+    }
+  ],
+  "catalogo_banderas_rojas": {
+    "generales": {
+      "ejecucion": [
+        { "senal": "Avance financiero alto sin evidencias claras de avance físico", "evidencia_sugerida": "Actas parciales, fotos fechadas, mediciones" },
+        { "senal": "Informes de interventoría sin anexos (fotos/ensayos/mediciones)", "evidencia_sugerida": "Informe mensual + anexos" }
+      ],
+      "calidad": [
+        { "senal": "Ausencia de ensayos o control de calidad para materiales críticos", "evidencia_sugerida": "Ensayos laboratorio / certificados" }
+      ],
+      "mediciones": [
+        { "senal": "Diferencias entre cantidades pagadas y cantidades verificables en campo", "evidencia_sugerida": "Planillas de cantidades, actas, verificación" }
+      ],
+      "cambios": [
+        { "senal": "Prórrogas repetidas sin justificación técnica robusta", "evidencia_sugerida": "Otrosí, actas de comité, justificación" }
+      ],
+      "plazo_costos": [
+        { "senal": "Adiciones recurrentes que cambian alcance original sin claridad", "evidencia_sugerida": "Estudios previos, actas, otrosíes" }
+      ],
+      "pagos": [
+        { "senal": "Pagos sin acta parcial firmada o sin soportes de ejecución", "evidencia_sugerida": "Acta parcial, factura, soportes" }
+      ],
+      "soportes": [
+        { "senal": "Documentos clave no publicados en SECOP II o publicados incompletos", "evidencia_sugerida": "Enlace SECOP II / solicitud formal" }
+      ],
+      "liquidacion": [
+        { "senal": "Liquidación sin acta de recibo final o con pendientes no resueltos", "evidencia_sugerida": "Actas, listado de pendientes" }
+      ],
+      "saldos": [
+        { "senal": "Saldos de liquidación sin explicación clara (mayores cantidades, ajustes)", "evidencia_sugerida": "Cuentas finales, actas, informes" }
+      ]
+    },
+    "por_tipo": {
+      "vias": {
+        "calidad": [
+          { "senal": "No hay ensayos de compactación/asfalto/concreto según corresponda", "evidencia_sugerida": "Ensayos, bitácora de obra" }
+        ]
+      },
+      "acueducto": {
+        "calidad": [
+          { "senal": "No hay pruebas de presión o estanqueidad documentadas", "evidencia_sugerida": "Protocolos de prueba y actas" }
+        ]
+      },
+      "alcantarillado": {
+        "calidad": [
+          { "senal": "No hay pruebas de hermeticidad/pendientes documentadas", "evidencia_sugerida": "Actas y reportes técnicos" }
+        ]
+      },
+      "taludes": {
+        "calidad": [
+          { "senal": "No hay soporte de diseño geotécnico/monitoreo/drenajes", "evidencia_sugerida": "Memorias, planos, reportes" }
+        ]
+      }
+    }
+  },
+  "documentos_minimos": {
+    "generales": [
+      { "id": "D01", "nombre": "Contrato y anexos (objeto, alcance, presupuesto)", "fase": "Ejecución" },
+      { "id": "D02", "nombre": "Acta de inicio", "fase": "Ejecución" },
+      { "id": "D03", "nombre": "Cronograma aprobado (y actualizaciones)", "fase": "Ejecución" },
+      { "id": "D04", "nombre": "Informes de interventoría/supervisión (mensuales) con anexos", "fase": "Ejecución" },
+      { "id": "D05", "nombre": "Actas parciales / cortes de obra", "fase": "Pagos" },
+      { "id": "D06", "nombre": "Soportes de pago (cuentas/facturas/actas)", "fase": "Pagos" },
+      { "id": "D07", "nombre": "Otrosíes/prórrogas/adiciones (si existen)", "fase": "Cambios" },
+      { "id": "D08", "nombre": "Acta de recibo final / terminación", "fase": "Cierre/Liquidación" },
+      { "id": "D09", "nombre": "Acta de liquidación (si aplica)", "fase": "Cierre/Liquidación" }
+    ],
+    "por_tipo": {
+      "vias": [
+        { "id": "V01", "nombre": "Ensayos de compactación / densidades (si aplica)", "fase": "Ejecución" },
+        { "id": "V02", "nombre": "Ensayos de asfalto o concreto (según corresponda)", "fase": "Ejecución" }
+      ],
+      "acueducto": [
+        { "id": "A01", "nombre": "Pruebas de presión / pruebas hidráulicas", "fase": "Ejecución" }
+      ],
+      "alcantarillado": [
+        { "id": "AL01", "nombre": "Pruebas de estanqueidad / hermeticidad / pendientes", "fase": "Ejecución" }
+      ],
+      "parques": [
+        { "id": "P01", "nombre": "Planos de detalle / especificaciones de mobiliario", "fase": "Ejecución" }
+      ],
+      "deportivos": [
+        { "id": "DPR01", "nombre": "Certificados/calidad de superficies (si aplica)", "fase": "Ejecución" }
+      ],
+      "educativa": [
+        { "id": "ED01", "nombre": "Actas de seguridad/aseguramiento (si aplica)", "fase": "Ejecución" }
+      ],
+      "social": [
+        { "id": "S01", "nombre": "Actas de entrega a comunidad/beneficiarios (si aplica)", "fase": "Cierre/Liquidación" }
+      ],
+      "taludes": [
+        { "id": "T01", "nombre": "Memoria geotécnica / diseños / drenajes / monitoreo", "fase": "Ejecución" }
+      ]
+    }
+  }
+}
+
