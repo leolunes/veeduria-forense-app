@@ -1,4 +1,4 @@
-const CACHE_NAME = "veeduria-secopiauditoria-v4";
+const CACHE_NAME = "veeduria-secopiauditoria-v6";
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -44,4 +44,3 @@ self.addEventListener("fetch", (event) => {
     }
   })());
 });
-

@@ -1,7 +1,7 @@
 {
-  "titulo": "Metodología de auditoría forense para veedurías ciudadanas en ejecución y liquidación (SECOP II)",
-  "version": "1.1",
-  "descripcion": "Guía ciudadana para registrar hechos verificables, evidencia y solicitudes durante ejecución y liquidación de contratos de infraestructura y obra pública en Colombia.",
+  "titulo": "Metodología de auditoría forense para veedurías ciudadanas en contratación, ejecución y liquidación (SECOP II)",
+  "version": "1.2",
+  "descripcion": "Guía ciudadana para registrar hechos verificables, evidencia y solicitudes durante la fase precontractual, contractual, ejecución y liquidación de contratos de infraestructura y obra pública en Colombia (enfoque forense preventivo/detectivo).",
   "tipos_infraestructura": [
     { "id": "vias", "nombre": "Vías y pavimentos" },
     { "id": "acueducto", "nombre": "Acueductos" },
@@ -14,24 +14,130 @@
   ],
   "fases": [
     {
-      "id": "EJEC",
-      "nombre": "Ejecución (seguimiento ciudadano)",
-      "objetivo": "Acompañar la ejecución verificando coherencia entre avances físicos, financieros y evidencias en SECOP II.",
-      "flag_keys": ["ejecucion", "calidad", "mediciones"],
+      "id": "PRE",
+      "nombre": "FASE I: Precontractual (planeación y selección)",
+      "objetivo": "Detectar direccionamiento, colusión, sobreestimación, fraccionamiento y vicios de planeación antes de la adjudicación.",
+      "flag_keys": ["planeacion_necesidad", "estudios_disenos", "presupuesto_oficial", "modalidad_seleccion", "pliegos_condiciones", "proponentes_evaluacion", "forense_transversal"],
       "checklist_general": [
-        { "id": "ej_g_01", "texto": "Revisé el acta de inicio y fecha real de arranque", "evidencia": "Acta de inicio, cronograma aprobado" },
-        { "id": "ej_g_02", "texto": "Verifiqué cronograma (cumplimiento o soportes de cambios)", "evidencia": "Cronograma, actas de comité, informes" },
-        { "id": "ej_g_03", "texto": "Contrasté avance físico vs. avance financiero", "evidencia": "Actas parciales, pagos, informes" },
-        { "id": "ej_g_04", "texto": "Revisé informes de interventoría/supervisión del período", "evidencia": "Informes mensuales con anexos" },
-        { "id": "ej_g_05", "texto": "Verifiqué control de calidad/ensayos para ítems críticos", "evidencia": "Ensayos laboratorio / certificados" }
+        { "id": "pre_01_01", "texto": "Existencia de estudios de necesidad debidamente aprobados", "evidencia": "Documento de necesidad / justificación / actas / BPIN si aplica" },
+        { "id": "pre_01_02", "texto": "Coherencia entre el objeto del contrato y el plan de desarrollo / presupuesto público", "evidencia": "Plan de desarrollo, presupuesto, CDP, documento soporte" },
+        { "id": "pre_01_03", "texto": "Justificación técnica, social y económica documentada", "evidencia": "Estudios previos, análisis costo-beneficio, diagnóstico" },
+        { "id": "pre_01_04", "texto": "Análisis de alternativas (¿se evaluaron otras opciones?)", "evidencia": "Matriz de alternativas, criterios, decisión documentada" },
+        { "id": "pre_01_05", "texto": "Revisé señales de posible “proyecto a la medida” de un contratista", "evidencia": "Requisitos/condiciones atípicas, experiencia específica excesiva, marcas/modelos" },
+
+        { "id": "pre_02_01", "texto": "Estudios técnicos completos (topografía, suelos, diseños, etc.)", "evidencia": "Estudios, memorias, planos, anexos" },
+        { "id": "pre_02_02", "texto": "Estudios elaborados por personal idóneo e independiente", "evidencia": "Contratos/hojas de vida/certificaciones, independencia" },
+        { "id": "pre_02_03", "texto": "Fechas de elaboración coherentes con la convocatoria", "evidencia": "Metadatos/fechas de firma, cronología SECOP II" },
+        { "id": "pre_02_04", "texto": "Señales de sobreestimación de cantidades de obra", "evidencia": "Comparación de cantidades vs diseños/alcance, observaciones técnicas" },
+        { "id": "pre_02_05", "texto": "Diseños ajustados posteriormente para justificar adiciones", "evidencia": "Versiones de planos/memorias, actas, cambios de alcance" },
+
+        { "id": "pre_03_01", "texto": "Presupuesto detallado por ítems", "evidencia": "Presupuesto oficial, listado de ítems/cantidades" },
+        { "id": "pre_03_02", "texto": "Precios unitarios acordes al mercado", "evidencia": "Cotizaciones, referencias regionales, matrices comparativas" },
+        { "id": "pre_03_03", "texto": "Análisis de precios unitarios (APU) completos", "evidencia": "APU con insumos, rendimientos, transporte, AIU" },
+        { "id": "pre_03_04", "texto": "Identifiqué inclusión indebida de costos indirectos o duplicados", "evidencia": "Revisión AIU, doble conteo, indirectos repetidos" },
+        { "id": "pre_03_05", "texto": "Identifiqué redondeos sospechosos o valores inflados", "evidencia": "Patrones de redondeo, precios atípicos, ítems inflados" },
+
+        { "id": "pre_04_01", "texto": "Modalidad correctamente escogida según cuantía y ley", "evidencia": "Acto/justificación de modalidad, cuantía, soporte normativo" },
+        { "id": "pre_04_02", "texto": "Justificación documentada de contratación directa (si aplica)", "evidencia": "Acto administrativo, causal, soportes" },
+        { "id": "pre_04_03", "texto": "Riesgo de fraccionamiento contractual", "evidencia": "Contratos similares, objeto repetido, tiempos cercanos" },
+        { "id": "pre_04_04", "texto": "Publicidad y transparencia del proceso", "evidencia": "SECOP II completo: estudios, pliegos, respuestas, evaluación" },
+        { "id": "pre_04_05", "texto": "Pliegos restrictivos o direccionados", "evidencia": "Requisitos inusuales, experiencia hiper-específica, barreras" },
+
+        { "id": "pre_05_01", "texto": "Requisitos habilitantes razonables", "evidencia": "Pliegos, habilitantes, comparación con procesos similares" },
+        { "id": "pre_05_02", "texto": "Criterios de evaluación objetivos", "evidencia": "Matriz de evaluación, metodología, reglas claras" },
+        { "id": "pre_05_03", "texto": "Puntajes desproporcionados", "evidencia": "Distribución de puntajes, riesgos de sesgo" },
+        { "id": "pre_05_04", "texto": "Especificaciones técnicas que favorecen a un proponente", "evidencia": "Marcas/modelos, condiciones cerradas, compatibilidades" },
+        { "id": "pre_05_05", "texto": "Cambios de pliegos sin justificación técnica", "evidencia": "Adendas, respuestas, motivación técnica, cronología" },
+
+        { "id": "pre_06_01", "texto": "Número real de oferentes", "evidencia": "Acta de cierre, listados, propuestas recibidas" },
+        { "id": "pre_06_02", "texto": "Proponentes con vínculos societarios o familiares (alerta)", "evidencia": "Representantes legales, socios, coincidencias, prensa/registros" },
+        { "id": "pre_06_03", "texto": "Ofertas con errores “tolerados”", "evidencia": "Requerimientos, subsanaciones, tratamientos diferenciales" },
+        { "id": "pre_06_04", "texto": "Evaluaciones técnicas y financieras objetivas", "evidencia": "Informe de evaluación, criterios aplicados, soportes" },
+        { "id": "pre_06_05", "texto": "Actas de evaluación firmadas y sustentadas", "evidencia": "Actas, firmas, soportes, trazabilidad" }
+      ],
+      "checklist_por_tipo": {}
+    },
+    {
+      "id": "CON",
+      "nombre": "FASE II: Contractual (firma, garantías y riesgos)",
+      "objetivo": "Identificar vicios legales, desequilibrios contractuales y riesgos de incumplimiento deliberado desde la firma e inicio.",
+      "flag_keys": ["contrato", "garantias", "actas_iniciales", "riesgos_contractuales", "forense_transversal"],
+      "checklist_general": [
+        { "id": "con_01_01", "texto": "Contrato firmado conforme a la ley", "evidencia": "Contrato, firmas, competencia, fechas" },
+        { "id": "con_01_02", "texto": "Objeto claro, específico y coherente con los pliegos", "evidencia": "Pliegos vs contrato, alcance, obligaciones" },
+        { "id": "con_01_03", "texto": "Valor contractual consistente con la adjudicación", "evidencia": "Acta de adjudicación, oferta ganadora, contrato" },
+        { "id": "con_01_04", "texto": "Plazo razonable y técnicamente viable", "evidencia": "Cronograma, rendimientos, justificación técnica" },
+        { "id": "con_01_05", "texto": "Cláusulas excepcionales incluidas (si aplica)", "evidencia": "Cláusulas, causales, régimen aplicable" },
+
+        { "id": "con_02_01", "texto": "Pólizas constituidas antes del inicio", "evidencia": "Pólizas, recibos, aprobación, fechas" },
+        { "id": "con_02_02", "texto": "Amparos completos (cumplimiento, calidad, estabilidad, salarios)", "evidencia": "Carátula y condiciones de póliza" },
+        { "id": "con_02_03", "texto": "Vigencias adecuadas", "evidencia": "Fechas de vigencia vs plazo + post-obra" },
+        { "id": "con_02_04", "texto": "Aseguradora habilitada", "evidencia": "Entidad aseguradora, habilitación, documentos" },
+        { "id": "con_02_05", "texto": "Modificaciones de pólizas con adiciones o prórrogas", "evidencia": "Endosos, otrosíes, prórrogas" },
+
+        { "id": "con_03_01", "texto": "Acta de inicio firmada correctamente", "evidencia": "Acta de inicio, responsables, fecha real" },
+        { "id": "con_03_02", "texto": "Entrega del anticipo (si aplica)", "evidencia": "Acta/soporte del giro, condiciones" },
+        { "id": "con_03_03", "texto": "Plan de inversión del anticipo", "evidencia": "Plan aprobado, soportes, seguimiento" },
+        { "id": "con_03_04", "texto": "Interventoría designada oportunamente", "evidencia": "Acto de designación, contrato interventoría/supervisión" },
+        { "id": "con_03_05", "texto": "Entrega del terreno/documentación", "evidencia": "Acta de entrega, actas previas, inventarios" },
+
+        { "id": "con_04_01", "texto": "Matriz de riesgos definida", "evidencia": "Matriz, asignación, mitigación" },
+        { "id": "con_04_02", "texto": "Riesgos mal asignados al Estado (alerta)", "evidencia": "Cláusulas, matriz, comparativo" },
+        { "id": "con_04_03", "texto": "Cláusulas ambiguas aprovechables", "evidencia": "Redacción, vacíos, interpretación" },
+        { "id": "con_04_04", "texto": "Falta de mecanismos de control y sanción", "evidencia": "Cláusulas de multas, incumplimiento, supervisión" }
+      ],
+      "checklist_por_tipo": {}
+    },
+    {
+      "id": "EJEC",
+      "nombre": "FASE III: Ejecución (seguimiento y control)",
+      "objetivo": "Detectar sobrecostos, obras no ejecutadas, pagos indebidos, colusión y falsedad documental durante la ejecución.",
+      "flag_keys": ["ejecucion_tecnica", "supervision_interventoria", "modificaciones", "pagos_facturacion", "legal_laboral", "cierre", "forense_transversal"],
+      "checklist_general": [
+        { "id": "ej_01_01", "texto": "Obra ejecutada conforme a diseños", "evidencia": "Planos, especificaciones, comparación fotográfica" },
+        { "id": "ej_01_02", "texto": "Cantidades realmente ejecutadas vs contratadas", "evidencia": "Planillas, mediciones, actas, fotos" },
+        { "id": "ej_01_03", "texto": "Cambios técnicos sin justificación (alerta)", "evidencia": "Actas, soportes técnicos, adendas, memorias" },
+        { "id": "ej_01_04", "texto": "Calidad de materiales y especificaciones", "evidencia": "Ensayos, certificados, informes" },
+        { "id": "ej_01_05", "texto": "Obras ocultas o no visibles verificadas", "evidencia": "Registros fotográficos, actas, pruebas" },
+
+        { "id": "ej_02_01", "texto": "Interventor con independencia real", "evidencia": "Contrato interventoría, conflictos de interés, vínculos" },
+        { "id": "ej_02_02", "texto": "Informes periódicos completos y oportunos", "evidencia": "Informes mensuales con anexos" },
+        { "id": "ej_02_03", "texto": "Evidencia de visitas de campo", "evidencia": "Actas, bitácora, registros, fotos fechadas" },
+        { "id": "ej_02_04", "texto": "Falta de observaciones críticas sospechosa", "evidencia": "Informes “perfectos” sin novedades, comparación campo" },
+        { "id": "ej_02_05", "texto": "Interventoría complaciente (alerta)", "evidencia": "Contradicciones, omisiones, validación sin soportes" },
+
+        { "id": "ej_03_01", "texto": "Adiciones en valor justificadas técnicamente", "evidencia": "Otrosí, estudios, memorias, actas" },
+        { "id": "ej_03_02", "texto": "Prórrogas debidamente motivadas", "evidencia": "Otrosí, cronograma actualizado, causales" },
+        { "id": "ej_03_03", "texto": "Suspensiones recurrentes", "evidencia": "Actas de suspensión/reinicio, causas, duración" },
+        { "id": "ej_03_04", "texto": "Cambios que alteran el objeto inicial (alerta)", "evidencia": "Comparación objeto/alcance original vs modificado" },
+        { "id": "ej_03_05", "texto": "Uso de adicionales para corregir mala planeación", "evidencia": "Relación PRE/CON vs cambios en EJEC" },
+
+        { "id": "ej_04_01", "texto": "Actas de obra reales y verificables", "evidencia": "Actas parciales, mediciones, registros" },
+        { "id": "ej_04_02", "texto": "Pagos conforme al avance físico", "evidencia": "Avance físico vs financiero, actas, informes" },
+        { "id": "ej_04_03", "texto": "Anticipo correctamente amortizado (si aplica)", "evidencia": "Amortización, soportes, plan inversión" },
+        { "id": "ej_04_04", "texto": "Pagos por obras no ejecutadas (alerta)", "evidencia": "Comparación campo, fotos, mediciones, actas" },
+        { "id": "ej_04_05", "texto": "Doble facturación o ítems duplicados (alerta)", "evidencia": "Revisión de ítems repetidos, APU, cuentas" },
+
+        { "id": "ej_05_01", "texto": "Aportes a seguridad social", "evidencia": "Planillas, certificaciones, soportes" },
+        { "id": "ej_05_02", "texto": "Pago a trabajadores y proveedores", "evidencia": "Certificados/paz y salvo, quejas, soportes" },
+        { "id": "ej_05_03", "texto": "Subcontratación irregular", "evidencia": "Contratos, cesiones, autorizaciones" },
+        { "id": "ej_05_04", "texto": "Empresas fachadas o vinculadas (alerta)", "evidencia": "Vínculos, repetición de empresas, coincidencias" },
+
+        { "id": "ej_06_01", "texto": "Acta de recibo final", "evidencia": "Acta, pendientes, lista de chequeo final" },
+        { "id": "ej_06_02", "texto": "Liquidación dentro del plazo legal", "evidencia": "Fechas, acta liquidación, cronología" },
+        { "id": "ej_06_03", "texto": "Salvedades no resueltas", "evidencia": "Actas, comunicaciones, pendientes" },
+        { "id": "ej_06_04", "texto": "Reclamaciones pendientes", "evidencia": "PQRS, requerimientos, controversias" },
+        { "id": "ej_06_05", "texto": "Posibles hallazgos fiscales, penales o disciplinarios (indicios)", "evidencia": "Hechos verificables + soportes" }
       ],
       "checklist_por_tipo": {
         "vias": [
           { "id": "ej_v_01", "texto": "Verifiqué ensayos de compactación/densidades (si aplica)", "evidencia": "Reporte de laboratorio / planillas" },
-          { "id": "ej_v_02", "texto": "Verifiqué ensayos de asfalto/concreto (según corresponda)", "evidencia": "Resultados de laboratorio / actas" }
+          { "id": "ej_v_02", "texto": "Verifiqué ensayos de asfalto/concreto (según corresponda)", "evidencia": "Resultados de laboratorio / actas" },
+          { "id": "ej_v_03", "texto": "Verifiqué espesores/longitudes/áreas con mediciones básicas", "evidencia": "Cinta/rueda, fotos, croquis, planillas" }
         ],
         "acueducto": [
-          { "id": "ej_a_01", "texto": "Verifiqué pruebas hidráulicas / presión documentadas", "evidencia": "Protocolos de prueba y actas" }
+          { "id": "ej_a_01", "texto": "Verifiqué pruebas hidráulicas / presión documentadas", "evidencia": "Protocolos de prueba y actas" },
+          { "id": "ej_a_02", "texto": "Verifiqué accesorios/válvulas/elementos instalados vs contrato", "evidencia": "Listado, actas, fotos y especificaciones" }
         ],
         "alcantarillado": [
           { "id": "ej_al_01", "texto": "Verifiqué pruebas de hermeticidad/pendientes/cámaras", "evidencia": "Actas y reportes técnicos" }
@@ -41,107 +147,95 @@
           { "id": "ej_t_02", "texto": "Verifiqué registro de monitoreo/estabilidad (si aplica)", "evidencia": "Reportes, bitácora, instrumentación" }
         ]
       }
-    },
-    {
-      "id": "CAMB",
-      "nombre": "Cambios (otrosíes / prórrogas / adicionales)",
-      "objetivo": "Verificar trazabilidad, justificación y soportes de modificaciones del contrato.",
-      "flag_keys": ["cambios", "plazo_costos"],
-      "checklist_general": [
-        { "id": "cb_g_01", "texto": "Identifiqué todos los otrosíes/prórrogas/adiciones", "evidencia": "Otrosíes y actos administrativos" },
-        { "id": "cb_g_02", "texto": "La justificación del cambio está soportada técnicamente", "evidencia": "Estudios, informes, memorias" },
-        { "id": "cb_g_03", "texto": "Verifiqué impacto en valor/plazo y cronograma actualizado", "evidencia": "Actas, cronograma actualizado" }
-      ],
-      "checklist_por_tipo": {}
-    },
-    {
-      "id": "PAGO",
-      "nombre": "Pagos (soportes y coherencia)",
-      "objetivo": "Verificar que pagos y actas correspondan a avances reales y soportes de ejecución.",
-      "flag_keys": ["pagos", "soportes"],
-      "checklist_general": [
-        { "id": "pg_g_01", "texto": "Revisé actas parciales y cuentas de cobro", "evidencia": "Actas, facturas, cuentas, soportes" },
-        { "id": "pg_g_02", "texto": "Verifiqué que el pago corresponde a cantidades ejecutadas", "evidencia": "Planillas, mediciones, fotos, actas" },
-        { "id": "pg_g_03", "texto": "Verifiqué retenciones/descuentos y pólizas vigentes", "evidencia": "Pólizas, certificados, paz y salvos (si aplica)" }
-      ],
-      "checklist_por_tipo": {
-        "vias": [
-          { "id": "pg_v_01", "texto": "Verifiqué que las cantidades pagadas coinciden con longitudes/áreas/espesores", "evidencia": "Planillas, levantamiento simple, fotos" }
-        ],
-        "taludes": [
-          { "id": "pg_t_01", "texto": "Verifiqué que pagos se soportan con volúmenes reales y reportes geotécnicos", "evidencia": "Memorias, actas, fotografías" }
-        ]
-      }
-    },
-    {
-      "id": "LIQ",
-      "nombre": "Cierre y liquidación",
-      "objetivo": "Acompañar el cierre, recibo final y liquidación con soportes completos y saldos claros.",
-      "flag_keys": ["liquidacion", "saldos", "calidad"],
-      "checklist_general": [
-        { "id": "lq_g_01", "texto": "Revisé acta de terminación/recibo final", "evidencia": "Acta de recibo final, listado de pendientes" },
-        { "id": "lq_g_02", "texto": "Verifiqué entregables/as-built según aplique", "evidencia": "Planos as-built, manuales, actas" },
-        { "id": "lq_g_03", "texto": "Revisé acta de liquidación y saldos finales", "evidencia": "Acta de liquidación, cuentas finales" }
-      ],
-      "checklist_por_tipo": {
-        "acueducto": [
-          { "id": "lq_a_01", "texto": "Verifiqué pruebas finales y actas de puesta en operación", "evidencia": "Actas, protocolos, entregables" }
-        ],
-        "taludes": [
-          { "id": "lq_t_01", "texto": "Verifiqué manual de mantenimiento/monitoreo post-obra (si aplica)", "evidencia": "Manual, recomendaciones, acta" }
-        ]
-      }
     }
   ],
   "catalogo_banderas_rojas": {
     "generales": {
-      "ejecucion": [
+      "planeacion_necesidad": [
+        { "senal": "Objeto del contrato no se alinea con plan de desarrollo o no tiene sustento presupuestal claro", "evidencia_sugerida": "Plan de desarrollo, CDP, documento de necesidad" },
+        { "senal": "Justificación vaga o genérica (“mejoramiento” sin diagnóstico ni alternativa)", "evidencia_sugerida": "Estudios previos, diagnóstico, alternativas" }
+      ],
+      "estudios_disenos": [
+        { "senal": "Estudios incompletos o no coherentes con el alcance contratado", "evidencia_sugerida": "Planos, memorias, anexos técnicos" },
+        { "senal": "Diseños/planos con versiones posteriores que habilitan adiciones", "evidencia_sugerida": "Control de versiones, fechas, actas" }
+      ],
+      "presupuesto_oficial": [
+        { "senal": "Ítems con precios unitarios atípicos o inflados frente al mercado", "evidencia_sugerida": "APU, cotizaciones, referencias regionales" },
+        { "senal": "Costos indirectos duplicados o AIU inconsistente", "evidencia_sugerida": "APU, AIU, comparativos" }
+      ],
+      "modalidad_seleccion": [
+        { "senal": "Modalidad de selección no corresponde a cuantía/objeto o justificación débil", "evidencia_sugerida": "Acto de modalidad, cuantía, soporte legal" },
+        { "senal": "Posible fraccionamiento contractual (múltiples contratos similares cercanos)", "evidencia_sugerida": "Historial SECOP II de contratos, objetos repetidos" }
+      ],
+      "pliegos_condiciones": [
+        { "senal": "Pliegos con requisitos hiper-específicos o restrictivos", "evidencia_sugerida": "Pliegos, habilitantes, experiencia exigida" },
+        { "senal": "Adendas que cambian reglas de juego sin motivación técnica", "evidencia_sugerida": "Adendas, respuestas, cronología" }
+      ],
+      "proponentes_evaluacion": [
+        { "senal": "Proponentes con posibles vínculos o competencia aparente (colusión)", "evidencia_sugerida": "Representantes, socios, coincidencias, patrones" },
+        { "senal": "Errores “tolerados” o subsanaciones con trato desigual", "evidencia_sugerida": "Informe evaluación, requerimientos, actas" }
+      ],
+      "contrato": [
+        { "senal": "Objeto/plazo/valor incongruente con pliegos y adjudicación", "evidencia_sugerida": "Contrato vs pliegos vs adjudicación" },
+        { "senal": "Cláusulas ambiguas que facilitan cambios/pagos sin control", "evidencia_sugerida": "Cláusulas, matriz de riesgos" }
+      ],
+      "garantias": [
+        { "senal": "Pólizas incompletas, vencidas o emitidas después del inicio", "evidencia_sugerida": "Pólizas, fechas, endosos" }
+      ],
+      "actas_iniciales": [
+        { "senal": "Acta de inicio sin condiciones habilitantes completas (pólizas, interventoría, terreno)", "evidencia_sugerida": "Acta inicio, pólizas, acta entrega terreno" }
+      ],
+      "riesgos_contractuales": [
+        { "senal": "Matriz de riesgos ausente o con asignación desbalanceada al Estado", "evidencia_sugerida": "Matriz de riesgos, contrato" }
+      ],
+      "ejecucion_tecnica": [
         { "senal": "Avance financiero alto sin evidencias claras de avance físico", "evidencia_sugerida": "Actas parciales, fotos fechadas, mediciones" },
-        { "senal": "Informes de interventoría sin anexos (fotos/ensayos/mediciones)", "evidencia_sugerida": "Informe mensual + anexos" }
+        { "senal": "Ausencia de control de calidad/ensayos en ítems críticos", "evidencia_sugerida": "Ensayos laboratorio / certificados" }
       ],
-      "calidad": [
-        { "senal": "Ausencia de ensayos o control de calidad para materiales críticos", "evidencia_sugerida": "Ensayos laboratorio / certificados" }
+      "supervision_interventoria": [
+        { "senal": "Informes de interventoría sin anexos (fotos/ensayos/mediciones)", "evidencia_sugerida": "Informe mensual + anexos" },
+        { "senal": "Interventoría “sin novedades” repetidamente pese a retrasos o quejas", "evidencia_sugerida": "Comparativo cronograma vs informes" }
       ],
-      "mediciones": [
-        { "senal": "Diferencias entre cantidades pagadas y cantidades verificables en campo", "evidencia_sugerida": "Planillas de cantidades, actas, verificación" }
+      "modificaciones": [
+        { "senal": "Prórrogas/adiciones repetidas sin sustento técnico robusto", "evidencia_sugerida": "Otrosí, actas, justificación" },
+        { "senal": "Cambios que alteran el objeto o corrigen mala planeación", "evidencia_sugerida": "Comparativo alcance, estudios, actas" }
       ],
-      "cambios": [
-        { "senal": "Prórrogas repetidas sin justificación técnica robusta", "evidencia_sugerida": "Otrosí, actas de comité, justificación" }
+      "pagos_facturacion": [
+        { "senal": "Pagos sin acta parcial firmada o sin soportes de ejecución", "evidencia_sugerida": "Acta parcial, factura, soportes" },
+        { "senal": "Diferencias entre cantidades pagadas y verificables", "evidencia_sugerida": "Planillas de cantidades, verificación" }
       ],
-      "plazo_costos": [
-        { "senal": "Adiciones recurrentes que cambian alcance original sin claridad", "evidencia_sugerida": "Estudios previos, actas, otrosíes" }
+      "legal_laboral": [
+        { "senal": "Riesgo de incumplimientos laborales o subcontratación irregular", "evidencia_sugerida": "Planillas, contratos, certificaciones" }
       ],
-      "pagos": [
-        { "senal": "Pagos sin acta parcial firmada o sin soportes de ejecución", "evidencia_sugerida": "Acta parcial, factura, soportes" }
+      "cierre": [
+        { "senal": "Recibo final o liquidación con pendientes no resueltos", "evidencia_sugerida": "Actas, listado de pendientes, salvedades" },
+        { "senal": "Saldos finales sin explicación clara (ajustes, mayores cantidades)", "evidencia_sugerida": "Cuentas finales, actas, informes" }
       ],
-      "soportes": [
-        { "senal": "Documentos clave no publicados en SECOP II o publicados incompletos", "evidencia_sugerida": "Enlace SECOP II / solicitud formal" }
-      ],
-      "liquidacion": [
-        { "senal": "Liquidación sin acta de recibo final o con pendientes no resueltos", "evidencia_sugerida": "Actas, listado de pendientes" }
-      ],
-      "saldos": [
-        { "senal": "Saldos de liquidación sin explicación clara (mayores cantidades, ajustes)", "evidencia_sugerida": "Cuentas finales, actas, informes" }
+      "forense_transversal": [
+        { "senal": "Patrones repetitivos (mismas empresas, mismos errores, mismos formatos)", "evidencia_sugerida": "Comparación con otros procesos SECOP II" },
+        { "senal": "Inconsistencias entre fechas, firmas, valores y cronologías", "evidencia_sugerida": "Cruce de documentos, metadatos, actas" },
+        { "senal": "Indicios de beneficiarios reales o vínculos entre funcionarios y contratistas", "evidencia_sugerida": "Declaraciones, coincidencias, redes, registros" },
+        { "senal": "Posible simulación/falsedad documental (formatos clonados, firmas dudosas, anexos faltantes)", "evidencia_sugerida": "Revisión de versiones, firmas, anexos, consistencia" }
       ]
     },
     "por_tipo": {
       "vias": {
-        "calidad": [
+        "ejecucion_tecnica": [
           { "senal": "No hay ensayos de compactación/asfalto/concreto según corresponda", "evidencia_sugerida": "Ensayos, bitácora de obra" }
         ]
       },
       "acueducto": {
-        "calidad": [
+        "ejecucion_tecnica": [
           { "senal": "No hay pruebas de presión o estanqueidad documentadas", "evidencia_sugerida": "Protocolos de prueba y actas" }
         ]
       },
       "alcantarillado": {
-        "calidad": [
+        "ejecucion_tecnica": [
           { "senal": "No hay pruebas de hermeticidad/pendientes documentadas", "evidencia_sugerida": "Actas y reportes técnicos" }
         ]
       },
       "taludes": {
-        "calidad": [
+        "ejecucion_tecnica": [
           { "senal": "No hay soporte de diseño geotécnico/monitoreo/drenajes", "evidencia_sugerida": "Memorias, planos, reportes" }
         ]
       }
@@ -149,15 +243,29 @@
   },
   "documentos_minimos": {
     "generales": [
-      { "id": "D01", "nombre": "Contrato y anexos (objeto, alcance, presupuesto)", "fase": "Ejecución" },
-      { "id": "D02", "nombre": "Acta de inicio", "fase": "Ejecución" },
-      { "id": "D03", "nombre": "Cronograma aprobado (y actualizaciones)", "fase": "Ejecución" },
-      { "id": "D04", "nombre": "Informes de interventoría/supervisión (mensuales) con anexos", "fase": "Ejecución" },
-      { "id": "D05", "nombre": "Actas parciales / cortes de obra", "fase": "Pagos" },
-      { "id": "D06", "nombre": "Soportes de pago (cuentas/facturas/actas)", "fase": "Pagos" },
-      { "id": "D07", "nombre": "Otrosíes/prórrogas/adiciones (si existen)", "fase": "Cambios" },
-      { "id": "D08", "nombre": "Acta de recibo final / terminación", "fase": "Cierre/Liquidación" },
-      { "id": "D09", "nombre": "Acta de liquidación (si aplica)", "fase": "Cierre/Liquidación" }
+      { "id": "P01", "nombre": "Estudios previos / documento de necesidad (aprobado)", "fase": "Precontractual" },
+      { "id": "P02", "nombre": "Análisis de alternativas y justificación técnica-social-económica", "fase": "Precontractual" },
+      { "id": "P03", "nombre": "Estudios y diseños (memorias, planos, suelos/topografía si aplica)", "fase": "Precontractual" },
+      { "id": "P04", "nombre": "Presupuesto oficial por ítems + APU + AIU", "fase": "Precontractual" },
+      { "id": "P05", "nombre": "CDP/soporte presupuestal y coherencia con plan de desarrollo", "fase": "Precontractual" },
+      { "id": "P06", "nombre": "Pliegos de condiciones / invitación + adendas + respuestas", "fase": "Precontractual" },
+      { "id": "P07", "nombre": "Acta de cierre + informe de evaluación + acta de adjudicación", "fase": "Precontractual" },
+
+      { "id": "C01", "nombre": "Contrato y anexos (objeto, alcance, obligaciones, valor, plazo)", "fase": "Contractual" },
+      { "id": "C02", "nombre": "Garantías / pólizas (cumplimiento, calidad, estabilidad, salarios)", "fase": "Contractual" },
+      { "id": "C03", "nombre": "Matriz de riesgos contractual (asignación y mitigación)", "fase": "Contractual" },
+      { "id": "C04", "nombre": "Acta de inicio + acta de entrega de terreno/documentación", "fase": "Contractual" },
+      { "id": "C05", "nombre": "Interventoría/supervisión designada (acto/contrato)", "fase": "Contractual" },
+      { "id": "C06", "nombre": "Anticipo (si aplica): plan de inversión + soportes de giro/amortización", "fase": "Contractual" },
+
+      { "id": "E01", "nombre": "Cronograma aprobado (y actualizaciones)", "fase": "Ejecución" },
+      { "id": "E02", "nombre": "Informes de interventoría/supervisión (mensuales) con anexos", "fase": "Ejecución" },
+      { "id": "E03", "nombre": "Actas parciales / cortes de obra", "fase": "Ejecución" },
+      { "id": "E04", "nombre": "Soportes de pago (cuentas/facturas/actas)", "fase": "Ejecución" },
+      { "id": "E05", "nombre": "Otrosíes/prórrogas/adiciones (si existen)", "fase": "Ejecución" },
+
+      { "id": "L01", "nombre": "Acta de recibo final / terminación + listado de pendientes", "fase": "Cierre/Liquidación" },
+      { "id": "L02", "nombre": "Acta de liquidación (si aplica) + saldos finales", "fase": "Cierre/Liquidación" }
     ],
     "por_tipo": {
       "vias": [
@@ -171,7 +279,7 @@
         { "id": "AL01", "nombre": "Pruebas de estanqueidad / hermeticidad / pendientes", "fase": "Ejecución" }
       ],
       "parques": [
-        { "id": "P01", "nombre": "Planos de detalle / especificaciones de mobiliario", "fase": "Ejecución" }
+        { "id": "PARK01", "nombre": "Planos de detalle / especificaciones de mobiliario", "fase": "Ejecución" }
       ],
       "deportivos": [
         { "id": "DPR01", "nombre": "Certificados/calidad de superficies (si aplica)", "fase": "Ejecución" }
@@ -188,4 +296,3 @@
     }
   }
 }
-

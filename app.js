@@ -1,9 +1,11 @@
 const DATA_URL = "./data/metodologia.json";
-const STORAGE_KEY = "veeduria_forense_multi_v10"; // bump
+const STORAGE_KEY = "veeduria_forense_multi_v9"; // nuevo
 
-// Evidencias (IndexedDB)
+// Evidencias y Documentos adjuntos (IndexedDB)
 const EVID_DB = "veeduria_evidences_v2";
+const EVID_DB_VERSION = 2; // <-- sube a 2 para crear nuevo store de archivos de documentos
 const EVID_STORE = "blobs";
+const DOC_STORE = "docblobs";
 
 let metodologia = null;
 let currentPhaseId = null;
@@ -16,22 +18,72 @@ let pendingHallazgoFiles = [];
 // ---------- Helpers DOM ----------
 function $(id) { return document.getElementById(id); }
 
-// ---------- IndexedDB ----------
+// ---------- Limpieza de “texto tutorial” en la parte superior ----------
+function removeTopTutorialText() {
+  // Este texto largo suele quedar pegado en un <p>/<div> del header.
+  // Lo eliminamos/ocultamos si aparece en el DOM.
+  const needles = [
+    "Listo. Partiendo exactamente de tus",
+    "⚠️ Nota técnica inevitable",
+    "ARCHIVO COMPLETO MODIFICADO",
+    "index.html Copia y pega este archivo completo",
+    "btnPickSecop"
+  ];
+
+  try {
+    const nodes = Array.from(document.querySelectorAll("body *")).slice(0, 2000);
+    for (const el of nodes) {
+      if (!el || !el.textContent) continue;
+      const t = el.textContent.trim();
+      if (!t) continue;
+
+      const hit = needles.some(n => t.includes(n));
+      if (!hit) continue;
+
+      // Si el elemento es “grande” (mucho texto) lo ocultamos.
+      // Evita romper layouts si es parte del header.
+      el.style.display = "none";
+    }
+  } catch {}
+}
+
+// ---------- IndexedDB (evidencias + archivos documentos) ----------
 function openEvidenceDB() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(EVID_DB, 1);
+    const req = indexedDB.open(EVID_DB, EVID_DB_VERSION);
+
     req.onupgradeneeded = () => {
       const db = req.result;
+
+      // store de evidencias (fotos)
       if (!db.objectStoreNames.contains(EVID_STORE)) {
         const store = db.createObjectStore(EVID_STORE, { keyPath: "id" });
         store.createIndex("caseId", "caseId", { unique: false });
+      } else {
+        const store = req.transaction.objectStore(EVID_STORE);
+        if (!store.indexNames.contains("caseId")) store.createIndex("caseId", "caseId", { unique: false });
+      }
+
+      // store de documentos adjuntos (pdf/word/excel)
+      if (!db.objectStoreNames.contains(DOC_STORE)) {
+        const store = db.createObjectStore(DOC_STORE, { keyPath: "id" });
+        store.createIndex("caseId", "caseId", { unique: false });
+        store.createIndex("docId", "docId", { unique: false });
+        store.createIndex("caseDoc", ["caseId", "docId"], { unique: false });
+      } else {
+        const store = req.transaction.objectStore(DOC_STORE);
+        if (!store.indexNames.contains("caseId")) store.createIndex("caseId", "caseId", { unique: false });
+        if (!store.indexNames.contains("docId")) store.createIndex("docId", "docId", { unique: false });
+        if (!store.indexNames.contains("caseDoc")) store.createIndex("caseDoc", ["caseId", "docId"], { unique: false });
       }
     };
+
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
 }
 
+// ----- Evidencias (fotos) -----
 async function putEvidenceBlob(record) {
   const db = await openEvidenceDB();
   return new Promise((resolve, reject) => {
@@ -73,15 +125,60 @@ async function getAllEvidenceForCase(caseId) {
   });
 }
 
-function blobToBase64DataUrl(blob) {
+// ----- Documentos adjuntos (pdf/word/excel) -----
+async function putDocBlob(record) {
+  const db = await openEvidenceDB();
   return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result || ""));
-    r.onerror = () => reject(r.error);
-    r.readAsDataURL(blob);
+    const tx = db.transaction(DOC_STORE, "readwrite");
+    tx.objectStore(DOC_STORE).put(record);
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
   });
 }
 
+async function getDocBlob(id) {
+  const db = await openEvidenceDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DOC_STORE, "readonly");
+    const req = tx.objectStore(DOC_STORE).get(id);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function deleteDocBlob(id) {
+  const db = await openEvidenceDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DOC_STORE, "readwrite");
+    tx.objectStore(DOC_STORE).delete(id);
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function getAllDocFilesForCase(caseId) {
+  const db = await openEvidenceDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DOC_STORE, "readonly");
+    const idx = tx.objectStore(DOC_STORE).index("caseId");
+    const req = idx.getAll(caseId);
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function getDocFilesByDocId(caseId, docId) {
+  const db = await openEvidenceDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DOC_STORE, "readonly");
+    const idx = tx.objectStore(DOC_STORE).index("caseDoc");
+    const req = idx.getAll([caseId, docId]);
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// ---------- Base64 helpers (ya existían) ----------
 function blobToBase64(blob) {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -129,7 +226,10 @@ function loadAppState() {
 
   appState.cases.forEach(c => {
     if (!Array.isArray(c.history)) c.history = [];
-    if (!Array.isArray(c.evidences)) c.evidences = []; // metadata
+    if (!Array.isArray(c.evidences)) c.evidences = []; // metadata (no blobs)
+    if (!Array.isArray(c.doc_files)) c.doc_files = []; // metadata (no blobs) para Documentos mínimos
+    if (!c.caso) c.caso = {};
+    if (typeof c.caso.contratoNombre !== "string") c.caso.contratoNombre = ""; // <-- NUEVO
   });
 }
 
@@ -172,12 +272,20 @@ function makeEmptyCase(nombre) {
     nombre: nombre || "Caso",
     creado_en: now,
     actualizado_en: now,
-    caso: { secopUrl: "", entidad: "", procesoId: "", ubicacion: "", tipoInfra: "" },
+    caso: {
+      secopUrl: "",
+      entidad: "",
+      procesoId: "",
+      ubicacion: "",
+      tipoInfra: "",
+      contratoNombre: "" // <-- NUEVO: Nombre del Contrato
+    },
     checks: {},
     logs: [],
     hallazgos: [],
     docs: {},
-    evidences: [],
+    evidences: [], // metadata; blobs en IndexedDB
+    doc_files: [], // metadata; blobs en IndexedDB (DOC_STORE)
     history: [
       { ts: now, user: "Sistema", action: "CREAR_CASO", field: "case", from: "", to: nombre || "Caso", note: "" }
     ]
@@ -187,8 +295,9 @@ function makeEmptyCase(nombre) {
 function deriveCaseNameFromFields(c) {
   const ent = c.caso.entidad?.trim();
   const pid = c.caso.procesoId?.trim();
+  const contrato = c.caso.contratoNombre?.trim(); // <-- NUEVO
   const tipo = getTipoNombre(c.caso.tipoInfra || "");
-  const pieces = [pid, ent, tipo].filter(Boolean);
+  const pieces = [pid, ent, contrato, tipo].filter(Boolean);
   return pieces.length ? pieces.join(" · ") : c.nombre;
 }
 
@@ -218,13 +327,33 @@ function duplicateActiveCase() {
   copy.history = copy.history || [];
   copy.history.unshift({ ts: copy.creado_en, user: getUserName(), action: "DUPLICAR_CASO", field: "case", from: src.id, to: copy.id, note: "" });
 
-  // Evidencias: metadata se vacía (blobs se mantienen solo en caso original)
+  // Evidencias y doc_files: SOLO metadata; blobs NO se duplican
   copy.evidences = [];
+  copy.doc_files = [];
 
   appState.cases.unshift(copy);
   appState.activeCaseId = copy.id;
   saveAppState();
   loadActiveCaseToUI();
+}
+
+function deleteActiveCase() {
+  if (appState.cases.length <= 1) {
+    alert("No puedes eliminar el único caso. Crea otro primero.");
+    return;
+  }
+  const active = getActiveCase();
+  if (!confirm(`¿Eliminar el caso: "${active.nombre}"?\n\n(Se borrará el caso y sus evidencias/archivos en este dispositivo)`)) return;
+
+  Promise.all([
+    cleanupCaseEvidenceBlobs(active.id),
+    cleanupCaseDocBlobs(active.id)
+  ]).then(() => {
+    appState.cases = appState.cases.filter(c => c.id !== active.id);
+    appState.activeCaseId = appState.cases[0].id;
+    saveAppState();
+    loadActiveCaseToUI();
+  });
 }
 
 async function cleanupCaseEvidenceBlobs(caseId) {
@@ -234,20 +363,11 @@ async function cleanupCaseEvidenceBlobs(caseId) {
   } catch {}
 }
 
-function deleteActiveCase() {
-  if (appState.cases.length <= 1) {
-    alert("No puedes eliminar el único caso. Crea otro primero.");
-    return;
-  }
-  const active = getActiveCase();
-  if (!confirm(`¿Eliminar el caso: "${active.nombre}"?\n\n(Se borrará el caso y sus evidencias en este dispositivo)`)) return;
-
-  cleanupCaseEvidenceBlobs(active.id).then(() => {
-    appState.cases = appState.cases.filter(c => c.id !== active.id);
-    appState.activeCaseId = appState.cases[0].id;
-    saveAppState();
-    loadActiveCaseToUI();
-  });
+async function cleanupCaseDocBlobs(caseId) {
+  try {
+    const recs = await getAllDocFilesForCase(caseId);
+    for (const r of recs) await deleteDocBlob(r.id);
+  } catch {}
 }
 
 function newCase() {
@@ -259,7 +379,7 @@ function newCase() {
   loadActiveCaseToUI();
 }
 
-// ---------- PWA ----------
+// ---------- PWA/Offline ----------
 function updateOfflineBadge() {
   const el = $("offlineBadge");
   if (!el) return;
@@ -294,121 +414,12 @@ function bindTabs() {
   });
 }
 
-// ---------- Modal Galería ----------
-function bindGalleryModal() {
-  $("btnCloseGallery").addEventListener("click", closeGallery);
-  $("galleryModal").addEventListener("click", (e) => {
-    if (e.target && e.target.id === "galleryModal") closeGallery();
-  });
-  $("gallerySearch").addEventListener("input", () => {
-    const st = $("galleryModal").dataset.state;
-    if (!st) return;
-    try {
-      const parsed = JSON.parse(st);
-      openGallery(parsed.linkType, parsed.linkId, parsed.title, true);
-    } catch {}
-  });
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !$("galleryModal").classList.contains("hidden")) closeGallery();
-  });
-}
-
-function closeGallery() {
-  $("galleryModal").classList.add("hidden");
-  $("galleryContent").innerHTML = "";
-  $("galleryTitle").textContent = "Galería";
-  $("gallerySubtitle").textContent = "";
-  $("gallerySearch").value = "";
-  $("galleryEmpty").textContent = "";
-  $("galleryModal").dataset.state = "";
-}
-
-function getEvidencesLinked(c, linkType, linkId) {
-  return (c.evidences || []).filter(e => (e.links || []).some(x => x.type === linkType && x.id === linkId));
-}
-
-async function openGallery(linkType, linkId, title, isRefresh = false) {
-  const c = getActiveCase();
-  const list = getEvidencesLinked(c, linkType, linkId);
-
-  $("galleryModal").dataset.state = JSON.stringify({ linkType, linkId, title });
-
-  $("galleryTitle").textContent = title || `Galería ${linkType}:${linkId}`;
-  $("gallerySubtitle").textContent = `Caso: ${c.nombre} · Total: ${list.length}`;
-
-  const q = ($("gallerySearch").value || "").trim().toLowerCase();
-  const filtered = list.filter(e => {
-    if (!q) return true;
-    const blob = `${e.id} ${e.name} ${e.note || ""}`.toLowerCase();
-    return blob.includes(q);
-  });
-
-  const cards = [];
-  for (const e of filtered.slice(0, 120)) {
-    const blobRec = await getEvidenceBlob(e.id);
-    const url = blobRec?.blob ? URL.createObjectURL(blobRec.blob) : "";
-    const links = (e.links || []).map(x => `${x.type}${x.id ? ":"+x.id : ""}`).join(", ") || "—";
-
-    cards.push(`
-      <div class="thumb">
-        ${url ? `<img src="${escapeAttr(url)}" alt="evidencia" />` : `<div class="pad small">No disponible en este dispositivo.</div>`}
-        <div class="pad">
-          <div><b>${escapeHtml(shorten(e.name, 30))}</b></div>
-          <div class="small">ID: ${escapeHtml(e.id)}</div>
-          <div class="small">Vínculo: ${escapeHtml(links)}</div>
-          ${e.note ? `<div class="small">Nota: ${escapeHtml(shorten(e.note, 80))}</div>` : ""}
-          <button data-open="${escapeAttr(e.id)}">Abrir</button>
-          <button data-del="${escapeAttr(e.id)}" class="danger">Eliminar</button>
-        </div>
-      </div>
-    `);
-  }
-
-  $("galleryContent").innerHTML = cards.join("");
-  $("galleryEmpty").textContent =
-    !filtered.length ? "No hay evidencias en esta galería (o el filtro no coincide)." :
-    (filtered.length > 120 ? "Mostrando 120 evidencias. Usa el filtro para encontrar más." : "");
-
-  // Bind open/delete
-  const view = $("galleryContent");
-  [...view.querySelectorAll("button[data-open]")].forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const id = btn.getAttribute("data-open");
-      const rec = await getEvidenceBlob(id);
-      if (!rec?.blob) {
-        alert("Esta evidencia no está disponible en este dispositivo.");
-        return;
-      }
-      const url = URL.createObjectURL(rec.blob);
-      window.open(url, "_blank");
-    });
-  });
-
-  [...view.querySelectorAll("button[data-del]")].forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const id = btn.getAttribute("data-del");
-      if (!confirm(`¿Eliminar evidencia ${id}?`)) return;
-      const c2 = getActiveCase();
-      await deleteEvidenceBlob(id);
-      const removed = (c2.evidences || []).find(x => x.id === id);
-      c2.evidences = (c2.evidences || []).filter(x => x.id !== id);
-      addHistory(c2, "ELIMINAR_EVIDENCIA", `evidences.${id}`, removed?.name || "", "", "");
-      touchCase(c2);
-      saveAppState();
-      renderEvidenceView();
-      renderDocsView();
-      renderHallazgos();
-      renderHistoryView();
-      openGallery(linkType, linkId, title, true);
-    });
-  });
-
-  if (!isRefresh) $("galleryModal").classList.remove("hidden");
-}
-
 // ---------- Init ----------
 async function init() {
   loadAppState();
+
+  // Oculta el texto tutorial pegado arriba (si existe)
+  removeTopTutorialText();
 
   const res = await fetch(DATA_URL, { cache: "no-store" });
   metodologia = await res.json();
@@ -421,7 +432,6 @@ async function init() {
   $("appTitle").textContent = metodologia.titulo || "Metodología";
 
   bindTabs();
-  bindGalleryModal();
   renderTipoInfraSelector();
   renderPhaseList();
 
@@ -464,6 +474,10 @@ function loadActiveCaseToUI() {
   $("secopUbicacion").value = c.caso.ubicacion || "";
   $("tipoInfra").value = c.caso.tipoInfra || "";
 
+  // NUEVO: Nombre del Contrato (si existe el input en index.html)
+  const contratoEl = $("secopContrato");
+  if (contratoEl) contratoEl.value = c.caso.contratoNombre || "";
+
   renderLogs();
   renderHallazgos();
   renderDocsView();
@@ -482,8 +496,10 @@ function updateSubtitle() {
   const base = (metodologia.descripcion || "").trim();
   const tipoNombre = getTipoNombre(c.caso.tipoInfra || "") || "—";
   const p = computeOverallProgress();
+  const contrato = (c.caso.contratoNombre || "").trim();
+  const contratoTxt = contrato ? ` · Contrato: ${contrato}` : "";
   $("appSubtitle").textContent =
-    `${base} · Caso: ${c.nombre} · Progreso: ${p.percent}% (${p.done}/${p.total}) · Tipo: ${tipoNombre} · Ubicación: ${c.caso.ubicacion || "—"}`;
+    `${base} · Caso: ${c.nombre} · Progreso: ${p.percent}% (${p.done}/${p.total}) · Tipo: ${tipoNombre} · Ubicación: ${c.caso.ubicacion || "—"}${contratoTxt}`;
 }
 
 // ---------- Bind Caso ----------
@@ -527,6 +543,10 @@ function bindMainUI() {
     c.caso.ubicacion = $("secopUbicacion").value.trim();
     c.caso.tipoInfra = $("tipoInfra").value;
 
+    // NUEVO: contratoNombre (si existe el input)
+    const contratoEl = $("secopContrato");
+    c.caso.contratoNombre = contratoEl ? (contratoEl.value || "").trim() : (c.caso.contratoNombre || "");
+
     const prevName = c.nombre;
     if (c.nombre?.startsWith("Caso")) c.nombre = deriveCaseNameFromFields(c);
 
@@ -550,6 +570,17 @@ function bindMainUI() {
     updatePeticionBox(true);
     updateInformeBox(true);
     renderHistoryView();
+  });
+
+  // Abrir SECOP II
+  $("btnOpenSecop").addEventListener("click", () => {
+    const c = getActiveCase();
+    const url = (c.caso.secopUrl || "").trim();
+    if (!url) {
+      alert("Primero ingresa el enlace del proceso (SECOP II) en el campo correspondiente.");
+      return;
+    }
+    window.open(url, "_blank", "noreferrer");
   });
 
   // Bitácora
@@ -602,8 +633,8 @@ function bindMainUI() {
   $("btnDownloadDocsCsv").addEventListener("click", () => downloadText(buildDocsCSV(), "documentos_veeduria.csv"));
   $("btnDownloadRiskTxt").addEventListener("click", () => downloadText(buildRiskSummaryTxt(), "riesgo_caso_veeduria.txt"));
 
-  // PDF con anexos
-  $("btnExportPDF").addEventListener("click", () => exportReportToPDFWithAnnexes());
+  // PDF (sin servidor): ventana imprimible
+  $("btnExportPDF").addEventListener("click", () => exportReportToPDF());
 
   // Petición
   $("btnGenPeticion").addEventListener("click", () => updatePeticionBox(true));
@@ -723,6 +754,7 @@ function renderPhase(phase) {
     <div class="badges">
       <span class="badge"><b>Entidad:</b> ${escapeHtml(c.caso.entidad || "—")}</span>
       <span class="badge"><b>Proceso:</b> ${escapeHtml(c.caso.procesoId || "—")}</span>
+      <span class="badge"><b>Contrato:</b> ${escapeHtml(c.caso.contratoNombre || "—")}</span>
       <span class="badge"><b>Ubicación:</b> ${escapeHtml(c.caso.ubicacion || "—")}</span>
       <span class="badge"><b>Tipo:</b> ${escapeHtml(tipoNombre || "—")}</span>
       <span class="badge"><b>SECOP II:</b> ${
@@ -943,14 +975,12 @@ function renderHallazgos() {
 
     const li = document.createElement("li");
     li.innerHTML = `
-      <b>${escapeHtml(h.id)}</b> (${escapeHtml(h.severidad)}) — ${escapeHtml(h.fase)}
-      <span class="small">· fotos: ${evidCount}</span><br/>
+      <b>${escapeHtml(h.id)}</b> (${escapeHtml(h.severidad)}) — ${escapeHtml(h.fase)} <span class="small">· fotos: ${evidCount}</span><br/>
       <span class="small">${escapeHtml(new Date(h.ts).toLocaleString())}</span><br/>
       <span class="small"><b>Hecho:</b> ${escapeHtml(shorten(h.hecho, 120))}</span><br/>
       <span class="small"><b>Evidencia:</b> ${escapeHtml(shorten(h.evidencia, 120))}</span><br/>
       <div class="row" style="margin-top:6px;">
         <button data-attach="${escapeAttr(h.id)}">Adjuntar foto</button>
-        <button data-gallery="${escapeAttr(h.id)}">Galería</button>
         <button data-del="${escapeAttr(h.id)}" class="danger">Eliminar</button>
       </div>
     `;
@@ -974,13 +1004,6 @@ function renderHallazgos() {
         renderHistoryView();
       };
       input.click();
-    });
-  });
-
-  [...ul.querySelectorAll("button[data-gallery]")].forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const hid = btn.getAttribute("data-gallery");
-      await openGallery("hallazgo", hid, `Galería del hallazgo ${hid}`);
     });
   });
 
@@ -1026,7 +1049,7 @@ async function addEvidenceFiles(c, files, link, note = "") {
       mime: file.type || "image/jpeg",
       size: file.size || 0,
       note: note || "",
-      links: [link]
+      links: [link],
     };
 
     await putEvidenceBlob({ id: evidId, caseId: c.id, mime: rec.mime, name: rec.name, blob: file });
@@ -1107,7 +1130,6 @@ async function renderEvidenceView() {
       saveAppState();
       renderEvidenceView();
       renderHallazgos();
-      renderDocsView();
       renderHistoryView();
     });
   });
@@ -1131,7 +1153,104 @@ function buildEvidenceCSV() {
   return rows.map(r => r.map(csvEscape).join(",")).join("\n");
 }
 
-// ---------- Documentos mínimos (adjuntar foto por doc + galería por doc) ----------
+/* ==========================
+   NUEVO: Archivos por Documentos mínimos
+   ========================== */
+
+function isAllowedDocFile(file) {
+  const name = (file?.name || "").toLowerCase();
+  const mime = (file?.type || "").toLowerCase();
+  const okExt = /\.(pdf|doc|docx|xls|xlsx)$/i.test(name);
+  const okMime =
+    mime.includes("pdf") ||
+    mime.includes("msword") ||
+    mime.includes("officedocument.wordprocessingml") ||
+    mime.includes("excel") ||
+    mime.includes("officedocument.spreadsheetml");
+  return okExt || okMime;
+}
+
+function makeDocFileId() {
+  return `DF-${Math.random().toString(16).slice(2, 10)}-${Date.now()}`;
+}
+
+async function addDocFilesToDocument(c, docId, files) {
+  c.doc_files = c.doc_files || [];
+  const added = [];
+
+  for (const file of files) {
+    if (!isAllowedDocFile(file)) continue;
+
+    const id = makeDocFileId();
+    const meta = {
+      id,
+      caseId: c.id,
+      docId,
+      ts: new Date().toISOString(),
+      name: file.name || `archivo_${id}`,
+      mime: file.type || "application/octet-stream",
+      size: file.size || 0
+    };
+
+    await putDocBlob({ id, caseId: c.id, docId, name: meta.name, mime: meta.mime, blob: file });
+
+    c.doc_files.unshift(meta);
+    added.push(meta.name);
+
+    addHistory(c, "ADJUNTAR_ARCHIVO_DOC", `doc_files.${id}`, "", meta.name, `Vinculado a ${docId}`);
+  }
+
+  touchCase(c);
+  saveAppState();
+
+  if (!added.length) {
+    alert("No se adjuntaron archivos. Tipos permitidos: PDF, Word, Excel.");
+  } else {
+    alert(`Archivo(s) adjuntado(s) a ${docId}: \n- ${added.join("\n- ")}`);
+  }
+}
+
+function getDocFilesMetaByDocId(c, docId) {
+  return (c.doc_files || []).filter(x => x.docId === docId);
+}
+
+async function openDocFile(meta) {
+  const rec = await getDocBlob(meta.id);
+  if (!rec?.blob) {
+    alert("Este archivo no está disponible en este dispositivo (puede faltar el blob).");
+    return;
+  }
+  const url = URL.createObjectURL(rec.blob);
+  window.open(url, "_blank");
+}
+
+async function downloadDocFile(meta) {
+  const rec = await getDocBlob(meta.id);
+  if (!rec?.blob) {
+    alert("Este archivo no está disponible en este dispositivo (puede faltar el blob).");
+    return;
+  }
+  downloadBlob(rec.blob, meta.name || "archivo");
+}
+
+async function deleteDocFile(metaId) {
+  const c = getActiveCase();
+  const meta = (c.doc_files || []).find(x => x.id === metaId);
+  if (!meta) return;
+
+  if (!confirm(`¿Eliminar archivo "${meta.name}" vinculado a ${meta.docId}?`)) return;
+
+  await deleteDocBlob(metaId);
+  c.doc_files = (c.doc_files || []).filter(x => x.id !== metaId);
+  addHistory(c, "ELIMINAR_ARCHIVO_DOC", `doc_files.${metaId}`, meta.name, "", `Vinculado a ${meta.docId}`);
+  touchCase(c);
+  saveAppState();
+
+  renderDocsView();
+  renderHistoryView();
+}
+
+// ---------- Documentos mínimos ----------
 function getDocsForSelectedType() {
   const docs = metodologia.documentos_minimos || {};
   const general = docs.generales || [];
@@ -1160,44 +1279,11 @@ function renderDocsView() {
   if (q) {
     docs = docs.filter(d => {
       const entry = c.docs?.[d.id] || { estado: "pendiente", evidencia: "" };
-      const fotos = countEvidenceLinked(c, { type: "doc", id: d.id });
-      const blob = `${d.id} ${d.nombre} ${d.fase} ${entry.estado} ${entry.evidencia || ""} fotos:${fotos}`.toLowerCase();
+      const attachedCount = getDocFilesMetaByDocId(c, d.id).length;
+      const blob = `${d.id} ${d.nombre} ${d.fase} ${entry.estado} ${entry.evidencia || ""} archivos:${attachedCount}`.toLowerCase();
       return blob.includes(q);
     });
   }
-
-  const rows = docs.map(d => {
-    const entry = c.docs?.[d.id] || { estado: "pendiente", evidencia: "" };
-    const estado = entry.estado || "pendiente";
-    const evid = entry.evidencia || "";
-    const fotos = countEvidenceLinked(c, { type: "doc", id: d.id });
-
-    return `
-      <tr>
-        <td><b>${escapeHtml(d.id)}</b></td>
-        <td>${escapeHtml(d.nombre)}</td>
-        <td>${escapeHtml(d.fase)}</td>
-        <td>
-          <select data-docestado="${escapeAttr(d.id)}">
-            <option value="pendiente" ${estado==="pendiente"?"selected":""}>Pendiente</option>
-            <option value="disponible" ${estado==="disponible"?"selected":""}>Disponible</option>
-            <option value="solicitado" ${estado==="solicitado"?"selected":""}>Solicitado</option>
-            <option value="no_disponible" ${estado==="no_disponible"?"selected":""}>No disponible</option>
-            <option value="no_aplica" ${estado==="no_aplica"?"selected":""}>No aplica</option>
-          </select>
-        </td>
-        <td>
-          <input data-docevid="${escapeAttr(d.id)}" placeholder="Enlace SECOP II / archivo / nota" value="${escapeAttr(evid)}" />
-          <div class="miniRow">
-            <button data-docattach="${escapeAttr(d.id)}">Adjuntar foto</button>
-            <button data-docgallery="${escapeAttr(d.id)}">Ver fotos (${fotos})</button>
-            <span class="miniHint">Fotos quedan offline y se incluyen en export JSON.</span>
-          </div>
-          <div class="small">La evidencia/nota se registra en historial al salir del campo (no en cada tecla).</div>
-        </td>
-      </tr>
-    `;
-  }).join("");
 
   const allDocs = getDocsForSelectedType();
   view.innerHTML = `
@@ -1205,6 +1291,7 @@ function renderDocsView() {
       <span class="badge"><b>Tipo:</b> ${escapeHtml(tipoNombre)}</span>
       <span class="badge"><b>Total docs:</b> ${allDocs.length}</span>
       <span class="badge"><b>Faltantes:</b> ${computeMissingDocsCount(allDocs)}</span>
+      <span class="badge"><b>Archivos adjuntos:</b> ${(c.doc_files||[]).length}</span>
       ${q ? `<span class="badge"><b>Filtro:</b> ${escapeHtml(q)}</span>` : ""}
     </div>
 
@@ -1215,16 +1302,65 @@ function renderDocsView() {
           <th>Documento</th>
           <th>Fase</th>
           <th>Estado</th>
-          <th>Evidencia/Nota + Fotos</th>
+          <th>Evidencia/Nota</th>
+          <th>Archivos (PDF/Word/Excel)</th>
         </tr>
       </thead>
       <tbody>
-        ${rows || `<tr><td colspan="5">Sin resultados</td></tr>`}
+        ${docs.map(d => {
+          const entry = c.docs?.[d.id] || { estado: "pendiente", evidencia: "" };
+          const estado = entry.estado || "pendiente";
+          const evid = entry.evidencia || "";
+          const files = getDocFilesMetaByDocId(c, d.id);
+          const filesHtml = files.length ? `
+            <div class="fileList">
+              ${files.slice(0, 6).map(f => `
+                <div class="fileItem">
+                  <div class="fileMeta">
+                    <div class="fileName">${escapeHtml(f.name)}</div>
+                    <div class="fileSub">ID: ${escapeHtml(f.id)} · ${escapeHtml(f.mime || "—")} · ${(f.size||0)} bytes · ${escapeHtml(new Date(f.ts).toLocaleString())}</div>
+                  </div>
+                  <div class="fileActions">
+                    <button class="btnSmall" data-docopen="${escapeAttr(f.id)}">Abrir</button>
+                    <button class="btnSmall" data-docdl="${escapeAttr(f.id)}">Descargar</button>
+                    <button class="btnSmall danger" data-docdel="${escapeAttr(f.id)}">Eliminar</button>
+                  </div>
+                </div>
+              `).join("")}
+              ${files.length > 6 ? `<div class="small">Mostrando 6 de ${files.length}. (Sugerencia: elimina duplicados o exporta el caso para respaldo.)</div>` : ""}
+            </div>
+          ` : `<div class="small">Sin archivos adjuntos.</div>`;
+
+          return `
+            <tr>
+              <td><b>${escapeHtml(d.id)}</b></td>
+              <td>${escapeHtml(d.nombre)}</td>
+              <td>${escapeHtml(d.fase)}</td>
+              <td>
+                <select data-docestado="${escapeAttr(d.id)}">
+                  <option value="pendiente" ${estado==="pendiente"?"selected":""}>Pendiente</option>
+                  <option value="disponible" ${estado==="disponible"?"selected":""}>Disponible</option>
+                  <option value="solicitado" ${estado==="solicitado"?"selected":""}>Solicitado</option>
+                  <option value="no_disponible" ${estado==="no_disponible"?"selected":""}>No disponible</option>
+                  <option value="no_aplica" ${estado==="no_aplica"?"selected":""}>No aplica</option>
+                </select>
+              </td>
+              <td>
+                <input data-docevid="${escapeAttr(d.id)}" placeholder="Enlace SECOP II / archivo / nota" value="${escapeAttr(evid)}" />
+                <div class="small">Se registra en historial al salir del campo (blur).</div>
+              </td>
+              <td>
+                <button class="btnSmall" data-docattach="${escapeAttr(d.id)}">Adjuntar archivo</button>
+                ${filesHtml}
+              </td>
+            </tr>
+          `;
+        }).join("") || `<tr><td colspan="6">Sin resultados</td></tr>`}
       </tbody>
     </table>
   `;
 
-  // Estado
+  // Estados
   [...view.querySelectorAll("select[data-docestado]")].forEach(sel => {
     sel.addEventListener("change", () => {
       const c2 = getActiveCase();
@@ -1277,20 +1413,19 @@ function renderDocsView() {
     });
   });
 
-  // Adjuntar foto por doc
+  // Adjuntar archivo por docId
   [...view.querySelectorAll("button[data-docattach]")].forEach(btn => {
-    btn.addEventListener("click", async () => {
+    btn.addEventListener("click", () => {
       const docId = btn.getAttribute("data-docattach");
       const input = document.createElement("input");
       input.type = "file";
-      input.accept = "image/*";
       input.multiple = true;
+      input.accept = ".pdf,.doc,.docx,.xls,.xlsx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
       input.onchange = async () => {
         const files = [...(input.files || [])];
         if (!files.length) return;
         const c2 = getActiveCase();
-        await addEvidenceFiles(c2, files, { type: "doc", id: docId }, `Fotos documento ${docId}`);
-        renderEvidenceView();
+        await addDocFilesToDocument(c2, docId, files);
         renderDocsView();
         renderHistoryView();
       };
@@ -1298,11 +1433,31 @@ function renderDocsView() {
     });
   });
 
-  // Galería por doc
-  [...view.querySelectorAll("button[data-docgallery]")].forEach(btn => {
+  // Abrir/descargar/eliminar archivo adjunto
+  [...view.querySelectorAll("button[data-docopen]")].forEach(btn => {
     btn.addEventListener("click", async () => {
-      const docId = btn.getAttribute("data-docgallery");
-      await openGallery("doc", docId, `Galería del documento ${docId}`);
+      const id = btn.getAttribute("data-docopen");
+      const c2 = getActiveCase();
+      const meta = (c2.doc_files || []).find(x => x.id === id);
+      if (!meta) return;
+      await openDocFile(meta);
+    });
+  });
+
+  [...view.querySelectorAll("button[data-docdl]")].forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const id = btn.getAttribute("data-docdl");
+      const c2 = getActiveCase();
+      const meta = (c2.doc_files || []).find(x => x.id === id);
+      if (!meta) return;
+      await downloadDocFile(meta);
+    });
+  });
+
+  [...view.querySelectorAll("button[data-docdel]")].forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const id = btn.getAttribute("data-docdel");
+      await deleteDocFile(id);
     });
   });
 }
@@ -1385,6 +1540,7 @@ function buildRiskReasons() {
   reasons.push(`Avance de verificación (checklist): ${prog.percent}% (${prog.done}/${prog.total}).`);
   reasons.push(`Puntaje calculado: ${computeRiskScore()}/100.`);
   reasons.push(`Evidencias (fotos) guardadas: ${(c.evidences||[]).length}.`);
+  reasons.push(`Archivos adjuntos a documentos mínimos: ${(c.doc_files||[]).length}.`);
   return reasons;
 }
 
@@ -1407,6 +1563,7 @@ function buildRiskSummaryTxt() {
   lines.push(`Caso: ${c.nombre}`);
   lines.push(`Entidad: ${c.caso.entidad || "—"}`);
   lines.push(`Proceso/ID: ${c.caso.procesoId || "—"}`);
+  lines.push(`Contrato: ${c.caso.contratoNombre || "—"}`);
   lines.push(`Municipio/Departamento: ${c.caso.ubicacion || "—"}`);
   lines.push(`Tipo: ${getTipoNombre(c.caso.tipoInfra || "") || "—"}`);
   lines.push(`SECOP II: ${c.caso.secopUrl || "—"}`);
@@ -1422,7 +1579,7 @@ function buildRiskSummaryTxt() {
   return lines.join("\n");
 }
 
-// ---------- Petición/Informes (sin cambios funcionales relevantes) ----------
+// ---------- Petición/Informes ----------
 function updatePeticionBox(forceGen = false) {
   const box = $("peticionBox");
   if (!box) return;
@@ -1439,6 +1596,7 @@ function buildDerechoPeticion() {
   const hoy = new Date().toISOString().slice(0,10);
   const entidad = c.caso.entidad || "______________";
   const proceso = c.caso.procesoId || "______________";
+  const contrato = c.caso.contratoNombre || "______________";
   const ubic = c.caso.ubicacion || "______________";
   const tipo = getTipoNombre(c.caso.tipoInfra || "") || "______________";
   const secop = c.caso.secopUrl || "______________";
@@ -1459,6 +1617,7 @@ function buildDerechoPeticion() {
   lines.push("Referencia del contrato/proceso:");
   lines.push(`- Entidad: ${entidad}`);
   lines.push(`- Proceso/ID: ${proceso}`);
+  lines.push(`- Nombre del contrato: ${contrato}`);
   lines.push(`- Tipo de obra: ${tipo}`);
   lines.push(`- Municipio/Departamento: ${ubic}`);
   lines.push(`- Enlace SECOP II: ${secop}`);
@@ -1486,6 +1645,13 @@ function buildDerechoPeticion() {
   } else {
     lines.push("2) Hechos observados:");
     lines.push("- (A la fecha, no se registran hechos específicos; se solicita garantizar publicidad y entrega de soportes).");
+    lines.push("");
+  }
+
+  const docFilesCount = (c.doc_files||[]).length;
+  if (docFilesCount) {
+    lines.push("Anexos ciudadanos (archivos adjuntos en la app):");
+    lines.push(`- Se adjuntaron ${docFilesCount} archivo(s) vinculados a documentos mínimos (Pxx/Cxx/Exx/Lxx).`);
     lines.push("");
   }
 
@@ -1554,6 +1720,7 @@ function buildInformeDestinatario() {
 
   const entidad = c.caso.entidad || "—";
   const proceso = c.caso.procesoId || "—";
+  const contrato = c.caso.contratoNombre || "—";
   const ubic = c.caso.ubicacion || "—";
   const tipo = getTipoNombre(c.caso.tipoInfra || "") || "—";
   const secop = c.caso.secopUrl || "—";
@@ -1575,6 +1742,7 @@ function buildInformeDestinatario() {
   lines.push(`- Caso: ${c.nombre}`);
   lines.push(`- Entidad: ${entidad}`);
   lines.push(`- Proceso/ID: ${proceso}`);
+  lines.push(`- Nombre del contrato: ${contrato}`);
   lines.push(`- Tipo de obra: ${tipo}`);
   lines.push(`- Municipio/Departamento: ${ubic}`);
   lines.push(`- Enlace SECOP II: ${secop}`);
@@ -1591,6 +1759,16 @@ function buildInformeDestinatario() {
   if (docsFalt.length) {
     lines.push("4. Documentación pendiente / faltante (según verificación ciudadana)");
     docsFalt.forEach(d => lines.push(`- ${d}`));
+    lines.push("");
+  }
+
+  const docFilesCount = (c.doc_files||[]).length;
+  if (docFilesCount) {
+    lines.push("4.1. Soportes ciudadanos adjuntos en la app (archivos)");
+    lines.push(`- Total archivos adjuntos vinculados a documentos mínimos: ${docFilesCount}`);
+    const byDoc = {};
+    (c.doc_files||[]).forEach(f => { byDoc[f.docId] = (byDoc[f.docId]||0) + 1; });
+    Object.keys(byDoc).slice(0, 12).forEach(k => lines.push(`- ${k}: ${byDoc[k]} archivo(s)`));
     lines.push("");
   }
 
@@ -1615,7 +1793,7 @@ function buildInformeDestinatario() {
   lines.push("");
 
   lines.push("7. Nota metodológica");
-  lines.push("Este informe no constituye imputación penal ni dictamen técnico oficial. Resume control social basado en revisión documental SECOP II, bitácora, evidencia (fotos offline) y checklist por tipo.");
+  lines.push("Este informe no constituye imputación penal ni dictamen técnico oficial. Resume control social basado en revisión documental SECOP II, bitácora, evidencia (fotos offline), archivos adjuntos a documentos mínimos y checklist por tipo.");
 
   return lines.join("\n");
 }
@@ -1676,6 +1854,7 @@ function buildPreliminaryReport() {
   lines.push(`- Caso: ${c.nombre}`);
   lines.push(`- Entidad: ${c.caso.entidad || "—"}`);
   lines.push(`- Proceso/ID: ${c.caso.procesoId || "—"}`);
+  lines.push(`- Nombre del contrato: ${c.caso.contratoNombre || "—"}`);
   lines.push(`- Municipio/Departamento: ${c.caso.ubicacion || "—"}`);
   lines.push(`- Tipo de obra: ${tipoNombre || "—"}`);
   lines.push(`- Enlace SECOP II: ${c.caso.secopUrl || "—"}`);
@@ -1689,7 +1868,7 @@ function buildPreliminaryReport() {
   const docs = getDocsForSelectedType();
   if (!c.caso.tipoInfra) lines.push(`- (Seleccione tipo de obra para evaluar documentos específicos)`);
   else lines.push(`- Faltantes/pendientes: ${computeMissingDocsCount(docs)} de ${docs.length}`);
-  lines.push(`- Fotos asociadas a documentos: ${countEvidenceByLinkType(c, "doc")}`);
+  lines.push(`- Archivos adjuntos a documentos mínimos: ${(c.doc_files||[]).length}`);
   lines.push(``);
 
   lines.push(`4. Evidencias (fotos)`);
@@ -1708,7 +1887,6 @@ function buildPreliminaryReport() {
   lines.push(`- Observaciones: ${counts.obs}`);
   lines.push(`- Alertas: ${counts.alerta}`);
   lines.push(`- Alertas críticas: ${counts.critica}`);
-  lines.push(`- Fotos asociadas a hallazgos: ${countEvidenceByLinkType(c, "hallazgo")}`);
   lines.push(``);
 
   if (!hallazgos.length) lines.push(`(Sin hallazgos registrados)`);
@@ -1717,7 +1895,7 @@ function buildPreliminaryReport() {
       lines.push(`${h.id} — ${h.severidad} — ${h.fase} — ${new Date(h.ts).toLocaleString()}`);
       lines.push(`Hecho: ${h.hecho}`);
       lines.push(`Evidencia: ${h.evidencia}`);
-      const fotos = getEvidencesLinked(c, "hallazgo", h.id);
+      const fotos = (c.evidences||[]).filter(e => (e.links||[]).some(x => x.type==="hallazgo" && x.id===h.id));
       if (fotos.length) lines.push(`Fotos (offline): ${fotos.map(x=>x.id).join(", ")}`);
       if (h.impacto) lines.push(`Impacto/Riesgo: ${h.impacto}`);
       lines.push(`Solicitud: ${h.solicitud}`);
@@ -1731,67 +1909,16 @@ function buildPreliminaryReport() {
   lines.push(``);
 
   lines.push(`8. Nota metodológica`);
-  lines.push(`Este informe no constituye imputación penal; presenta hechos verificables y solicitudes concretas basadas en SECOP II, bitácora, fotos offline y evidencia organizada.`);
+  lines.push(`Este informe no constituye imputación penal; presenta hechos verificables y solicitudes concretas basadas en SECOP II, bitácora, fotos offline y evidencia organizada. Incluye archivos adjuntos a documentos mínimos cuando existan.`);
 
   return lines.join("\n");
 }
 
-function countEvidenceByLinkType(c, linkType) {
-  return (c.evidences || []).filter(e => (e.links||[]).some(x => x.type === linkType)).length;
-}
-
-// ---------- PDF con anexos (miniaturas embebidas) ----------
-async function exportReportToPDFWithAnnexes() {
+// ---------- PDF (sin servidor) ----------
+function exportReportToPDF() {
   const c = getActiveCase();
   const reportText = buildPreliminaryReport();
   const title = `Informe preliminar - ${c.nombre}`;
-
-  // Prepara anexos con miniaturas (data URL)
-  const hallazgoEvs = (c.evidences || []).filter(e => (e.links||[]).some(x => x.type === "hallazgo"));
-  const docEvs = (c.evidences || []).filter(e => (e.links||[]).some(x => x.type === "doc"));
-  const otherEvs = (c.evidences || []).filter(e => !(e.links||[]).some(x => x.type === "hallazgo" || x.type === "doc"));
-
-  const MAX_IMG = 36; // para evitar PDFs gigantes
-  const picked = [
-    ...hallazgoEvs.slice(0, Math.min(MAX_IMG, hallazgoEvs.length)),
-    ...docEvs.slice(0, Math.max(0, MAX_IMG - Math.min(MAX_IMG, hallazgoEvs.length))).slice(0, MAX_IMG),
-  ].slice(0, MAX_IMG);
-
-  // Si aún hay espacio, agrega algunas "otras"
-  const remainingSlots = MAX_IMG - picked.length;
-  if (remainingSlots > 0) picked.push(...otherEvs.slice(0, remainingSlots));
-
-  const annexItems = [];
-  for (const e of picked) {
-    const rec = await getEvidenceBlob(e.id);
-    if (!rec?.blob) continue;
-    const dataUrl = await blobToBase64DataUrl(rec.blob);
-    const links = (e.links || []).map(x => `${x.type}${x.id ? ":"+x.id : ""}`).join(", ") || "—";
-    annexItems.push({ id: e.id, name: e.name, links, note: e.note || "", dataUrl });
-  }
-
-  const omitted = (c.evidences || []).length - annexItems.length;
-
-  const annexHtml = `
-    <h2>Anexos (miniaturas de evidencia)</h2>
-    <div class="meta">
-      Evidencias anexadas: ${annexItems.length}${omitted > 0 ? ` · Omitidas por límite/tamaño: ${omitted}` : ""}
-    </div>
-    <div class="annexGrid">
-      ${annexItems.map(x => `
-        <div class="annexCard">
-          <img src="${x.dataUrl}" alt="evidencia"/>
-          <div class="cap">
-            <div><b>${escapeHtml(x.id)}</b></div>
-            <div class="sm">${escapeHtml(shorten(x.name, 40))}</div>
-            <div class="sm">Vínculo: ${escapeHtml(shorten(x.links, 50))}</div>
-            ${x.note ? `<div class="sm">Nota: ${escapeHtml(shorten(x.note, 60))}</div>` : ""}
-          </div>
-        </div>
-      `).join("")}
-    </div>
-    <p class="sm">Sugerencia: si necesitas anexar todas las fotos, exporta el caso en JSON (con fotos) y adjúntalo como soporte digital.</p>
-  `;
 
   const html = `
   <!doctype html>
@@ -1802,28 +1929,8 @@ async function exportReportToPDFWithAnnexes() {
     <style>
       body{ font-family: Arial, Helvetica, sans-serif; margin: 24px; color:#111; }
       h1{ font-size: 18px; margin:0 0 10px; }
-      h2{ font-size: 14px; margin:18px 0 10px; }
-      .meta{ font-size: 12px; color:#333; margin-bottom: 12px; }
+      .meta{ font-size: 12px; color:#333; margin-bottom: 16px; }
       pre{ white-space: pre-wrap; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.35; }
-      .sm{ font-size: 10px; color:#333; line-height:1.25; }
-      .annexGrid{
-        display:grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 10px;
-      }
-      .annexCard{
-        border: 1px solid #ddd;
-        border-radius: 10px;
-        overflow:hidden;
-        page-break-inside: avoid;
-      }
-      .annexCard img{
-        width: 100%;
-        height: 130px;
-        object-fit: cover;
-        display:block;
-      }
-      .cap{ padding: 8px; }
       @media print{
         body{ margin: 12mm; }
       }
@@ -1833,7 +1940,6 @@ async function exportReportToPDFWithAnnexes() {
     <h1>${escapeHtml(title)}</h1>
     <div class="meta">Generado por Veeduría Forense (PWA) · ${escapeHtml(new Date().toLocaleString())}</div>
     <pre>${escapeHtml(reportText)}</pre>
-    ${annexHtml}
     <script>
       setTimeout(()=>{ window.print(); }, 250);
     </script>
@@ -1894,7 +2000,7 @@ function buildHallazgosCSV() {
   const headers = ["id", "fecha", "fase", "severidad", "hecho", "evidencia", "impacto", "solicitud", "fotos_ids"];
   const rows = [headers];
   (c.hallazgos || []).slice().reverse().forEach(h => {
-    const fotos = getEvidencesLinked(c, "hallazgo", h.id).map(x=>x.id).join("|");
+    const fotos = (c.evidences||[]).filter(e => (e.links||[]).some(x => x.type==="hallazgo" && x.id===h.id)).map(x=>x.id).join("|");
     rows.push([h.id, new Date(h.ts).toLocaleString(), h.fase, h.severidad, h.hecho, h.evidencia, h.impacto || "", h.solicitud, fotos]);
   });
   return rows.map(r => r.map(csvEscape).join(",")).join("\n");
@@ -1903,13 +2009,13 @@ function buildHallazgosCSV() {
 function buildDocsCSV() {
   const c = getActiveCase();
   const docs = getDocsForSelectedType();
-  const headers = ["doc_id", "documento", "fase", "estado", "evidencia_nota", "fotos_ids"];
+  const headers = ["doc_id", "documento", "fase", "estado", "evidencia_nota", "archivos_adjuntos"];
   const rows = [headers];
   docs.forEach(d => {
     const st = c.docs?.[d.id]?.estado || "pendiente";
     const ev = c.docs?.[d.id]?.evidencia || "";
-    const fotos = getEvidencesLinked(c, "doc", d.id).map(x=>x.id).join("|");
-    rows.push([d.id, d.nombre, d.fase, st, ev, fotos]);
+    const count = getDocFilesMetaByDocId(c, d.id).length;
+    rows.push([d.id, d.nombre, d.fase, st, ev, String(count)]);
   });
   return rows.map(r => r.map(csvEscape).join(",")).join("\n");
 }
@@ -1972,7 +2078,7 @@ function buildHistoryCSV() {
   return rows.map(r => r.map(csvEscape).join(",")).join("\n");
 }
 
-// ---------- Export/Import JSON (incluye fotos) ----------
+// ---------- Export/Import JSON (incluye fotos + archivos docs) ----------
 function normalizeProcesoId(pid) {
   return String(pid || "").trim().toLowerCase().replace(/\s+/g, "");
 }
@@ -1983,9 +2089,9 @@ function findCaseByProcesoId(procesoId) {
 }
 
 async function buildExportPayloadForCase(c) {
+  // evidencias (fotos)
   const evidences = c.evidences || [];
   const evidence_data = [];
-
   for (const e of evidences) {
     const rec = await getEvidenceBlob(e.id);
     if (!rec?.blob) continue;
@@ -2003,12 +2109,31 @@ async function buildExportPayloadForCase(c) {
     });
   }
 
+  // archivos de documentos mínimos
+  const doc_files_meta = c.doc_files || [];
+  const doc_file_data = [];
+  for (const f of doc_files_meta) {
+    const rec = await getDocBlob(f.id);
+    if (!rec?.blob) continue;
+    const base64 = await blobToBase64(rec.blob);
+    doc_file_data.push({
+      id: f.id,
+      caseId: c.id,
+      docId: f.docId,
+      name: f.name,
+      mime: f.mime,
+      size: f.size,
+      ts: f.ts,
+      base64
+    });
+  }
+
   return {
     exportado_en: new Date().toISOString(),
-    formato: "veeduria_case_v3",
+    formato: "veeduria_case_v4",
     metodologia: { titulo: metodologia.titulo, version: metodologia.version },
     case_meta: { id: c.id, nombre: c.nombre, creado_en: c.creado_en, actualizado_en: c.actualizado_en },
-    caso: c.caso,
+    caso: c.caso, // incluye contratoNombre
     checks: c.checks,
     logs: c.logs,
     docs: c.docs,
@@ -2016,6 +2141,8 @@ async function buildExportPayloadForCase(c) {
     history: c.history,
     evidences_meta: evidences,
     evidence_data,
+    doc_files_meta,
+    doc_file_data,
     riesgo: { score: computeRiskScore(), level: riskLevel(computeRiskScore()) },
     informe_preliminar: buildPreliminaryReport()
   };
@@ -2030,7 +2157,7 @@ async function exportActiveCaseJSON() {
 async function exportAllCasesJSON() {
   const payload = {
     exportado_en: new Date().toISOString(),
-    formato: "veeduria_multi_v3",
+    formato: "veeduria_multi_v4",
     metodologia: { titulo: metodologia.titulo, version: metodologia.version },
     userName: appState.userName || "",
     cases: []
@@ -2050,15 +2177,16 @@ async function handleImportFile(e) {
     const text = await file.text();
     const data = JSON.parse(text);
 
-    if (data?.formato === "veeduria_multi_v3" && Array.isArray(data.cases)) {
+    // Multi v4
+    if (data?.formato === "veeduria_multi_v4" && Array.isArray(data.cases)) {
       let mergedCount = 0;
       let addedCount = 0;
 
       for (const x of data.cases) {
-        const imp = await convertExportToCaseV3(x);
+        const imp = await convertExportToCaseV4(x);
         const existing = findCaseByProcesoId(imp.caso?.procesoId || "");
         if (existing) {
-          mergeCases(existing, imp, "Import multi v3");
+          mergeCases(existing, imp, "Import multi v4");
           mergedCount++;
         } else {
           appState.cases.unshift(imp);
@@ -2073,11 +2201,12 @@ async function handleImportFile(e) {
       return;
     }
 
-    if (data?.formato === "veeduria_case_v3") {
-      const imp = await convertExportToCaseV3(data);
+    // Single v4
+    if (data?.formato === "veeduria_case_v4") {
+      const imp = await convertExportToCaseV4(data);
       const existing = findCaseByProcesoId(imp.caso?.procesoId || "");
       if (existing) {
-        mergeCases(existing, imp, "Import single v3");
+        mergeCases(existing, imp, "Import single v4");
         appState.activeCaseId = existing.id;
       } else {
         appState.cases.unshift(imp);
@@ -2089,7 +2218,30 @@ async function handleImportFile(e) {
       return;
     }
 
-    throw new Error("Formato de importación no reconocido (usa export v3).");
+    // Compatibilidad: v3 antiguo (sin doc_files)
+    if (data?.formato === "veeduria_case_v3" || (data?.formato === "veeduria_multi_v3")) {
+      alert("Este archivo es v3 (antiguo). La app actual soporta v4 (incluye archivos por documentos). Exporta de nuevo desde la versión actual para incluir adjuntos.\n\nAun así, se intentará importar lo básico.");
+      if (data?.formato === "veeduria_case_v3") {
+        const imp = await convertExportToCaseV3_Compat(data);
+        appState.cases.unshift(imp);
+        appState.activeCaseId = imp.id;
+        saveAppState();
+        loadActiveCaseToUI();
+        return;
+      }
+      if (data?.formato === "veeduria_multi_v3" && Array.isArray(data.cases)) {
+        for (const x of data.cases) {
+          const imp = await convertExportToCaseV3_Compat(x);
+          appState.cases.unshift(imp);
+        }
+        appState.activeCaseId = appState.cases[0].id;
+        saveAppState();
+        loadActiveCaseToUI();
+        return;
+      }
+    }
+
+    throw new Error("Formato de importación no reconocido (usa export v4).");
   } catch (err) {
     alert(`No se pudo importar: ${err.message || err}`);
   } finally {
@@ -2097,7 +2249,7 @@ async function handleImportFile(e) {
   }
 }
 
-async function convertExportToCaseV3(x) {
+async function convertExportToCaseV4(x) {
   const now = new Date().toISOString();
   const meta = x.case_meta || {};
   const c = makeEmptyCase(meta.nombre || "Caso importado");
@@ -2107,18 +2259,20 @@ async function convertExportToCaseV3(x) {
   c.creado_en = meta.creado_en || now;
   c.actualizado_en = meta.actualizado_en || now;
   c.caso = x.caso || c.caso;
+  if (typeof c.caso.contratoNombre !== "string") c.caso.contratoNombre = ""; // robustez
   c.checks = x.checks || {};
   c.logs = x.logs || [];
   c.docs = x.docs || {};
   c.hallazgos = x.hallazgos || [];
   c.history = Array.isArray(x.history) ? x.history : [];
   c.evidences = Array.isArray(x.evidences_meta) ? x.evidences_meta : [];
+  c.doc_files = Array.isArray(x.doc_files_meta) ? x.doc_files_meta : [];
 
+  // Restaurar blobs de evidencias (fotos)
   const evData = Array.isArray(x.evidence_data) ? x.evidence_data : [];
   for (const ed of evData) {
     const blob = base64ToBlob(ed.base64 || "", ed.mime || "image/jpeg");
     await putEvidenceBlob({ id: ed.id, caseId: c.id, mime: ed.mime, name: ed.name, blob });
-
     const idx = c.evidences.findIndex(z => z.id === ed.id);
     const metaRec = {
       id: ed.id,
@@ -2134,10 +2288,61 @@ async function convertExportToCaseV3(x) {
     else c.evidences.unshift(metaRec);
   }
 
-  if (!c.history.length) {
-    c.history.push({ ts: now, user: "Sistema", action: "IMPORTAR", field: "case", from: "", to: c.nombre, note: "Importado v3" });
+  // Restaurar blobs de archivos por documento mínimo
+  const dfData = Array.isArray(x.doc_file_data) ? x.doc_file_data : [];
+  for (const fd of dfData) {
+    const blob = base64ToBlob(fd.base64 || "", fd.mime || "application/octet-stream");
+    await putDocBlob({ id: fd.id, caseId: c.id, docId: fd.docId, name: fd.name, mime: fd.mime, blob });
+    const idx = c.doc_files.findIndex(z => z.id === fd.id);
+    const metaRec = {
+      id: fd.id,
+      caseId: c.id,
+      docId: fd.docId,
+      ts: fd.ts || now,
+      name: fd.name || `archivo_${fd.id}`,
+      mime: fd.mime || "application/octet-stream",
+      size: fd.size || 0
+    };
+    if (idx >= 0) c.doc_files[idx] = metaRec;
+    else c.doc_files.unshift(metaRec);
   }
 
+  if (!c.history.length) {
+    c.history.push({ ts: now, user: "Sistema", action: "IMPORTAR", field: "case", from: "", to: c.nombre, note: "Importado v4" });
+  }
+
+  return c;
+}
+
+// Compatibilidad mínima v3 (solo fotos)
+async function convertExportToCaseV3_Compat(x) {
+  const now = new Date().toISOString();
+  const meta = x.case_meta || {};
+  const c = makeEmptyCase(meta.nombre || "Caso importado");
+
+  c.id = `C-${Math.random().toString(16).slice(2, 10)}-${Date.now()}`;
+  c.nombre = meta.nombre || "Caso importado";
+  c.creado_en = meta.creado_en || now;
+  c.actualizado_en = meta.actualizado_en || now;
+  c.caso = x.caso || c.caso;
+  if (typeof c.caso.contratoNombre !== "string") c.caso.contratoNombre = ""; // robustez
+  c.checks = x.checks || {};
+  c.logs = x.logs || [];
+  c.docs = x.docs || {};
+  c.hallazgos = x.hallazgos || [];
+  c.history = Array.isArray(x.history) ? x.history : [];
+  c.evidences = Array.isArray(x.evidences_meta) ? x.evidences_meta : [];
+  c.doc_files = [];
+
+  const evData = Array.isArray(x.evidence_data) ? x.evidence_data : [];
+  for (const ed of evData) {
+    const blob = base64ToBlob(ed.base64 || "", ed.mime || "image/jpeg");
+    await putEvidenceBlob({ id: ed.id, caseId: c.id, mime: ed.mime, name: ed.name, blob });
+  }
+
+  if (!c.history.length) {
+    c.history.push({ ts: now, user: "Sistema", action: "IMPORTAR", field: "case", from: "", to: c.nombre, note: "Importado v3 compat" });
+  }
   return c;
 }
 
@@ -2154,10 +2359,10 @@ function pickBetterEstado(a, b) {
 }
 
 function mergeCases(target, incoming, noteSource) {
-  const beforeCounts = { logs: (target.logs || []).length, hallazgos: (target.hallazgos || []).length, evid: (target.evidences||[]).length };
+  const beforeCounts = { logs: (target.logs || []).length, hallazgos: (target.hallazgos || []).length, evid: (target.evidences||[]).length, docf: (target.doc_files||[]).length };
 
-  target.caso = target.caso || { secopUrl: "", entidad: "", procesoId: "", ubicacion: "", tipoInfra: "" };
-  const fields = ["secopUrl", "entidad", "procesoId", "ubicacion", "tipoInfra"];
+  target.caso = target.caso || { secopUrl: "", entidad: "", procesoId: "", ubicacion: "", tipoInfra: "", contratoNombre: "" };
+  const fields = ["secopUrl", "entidad", "procesoId", "ubicacion", "tipoInfra", "contratoNombre"]; // <-- incluye contratoNombre
   fields.forEach(f => {
     const t = (target.caso[f] || "").trim();
     const inc = (incoming.caso?.[f] || "").trim();
@@ -2217,6 +2422,7 @@ function mergeCases(target, incoming, noteSource) {
     sigSet.add(sig);
   });
 
+  // Evidencias meta
   target.evidences = target.evidences || [];
   const keySet = new Set(target.evidences.map(e => `${e.name}|${e.size}|${e.ts}`));
   (incoming.evidences || []).forEach(e => {
@@ -2224,6 +2430,16 @@ function mergeCases(target, incoming, noteSource) {
     if (keySet.has(key)) return;
     target.evidences.unshift({ ...e, caseId: target.id });
     keySet.add(key);
+  });
+
+  // Doc files meta
+  target.doc_files = target.doc_files || [];
+  const dfKeySet = new Set(target.doc_files.map(e => `${e.docId}|${e.name}|${e.size}|${e.ts}`));
+  (incoming.doc_files || []).forEach(f => {
+    const key = `${f.docId}|${f.name}|${f.size}|${f.ts}`;
+    if (dfKeySet.has(key)) return;
+    target.doc_files.unshift({ ...f, caseId: target.id });
+    dfKeySet.add(key);
   });
 
   target.history = (target.history || []).concat(Array.isArray(incoming.history) ? incoming.history : []).slice(0, 800);
@@ -2237,10 +2453,10 @@ function mergeCases(target, incoming, noteSource) {
 
   touchCase(target);
 
-  const afterCounts = { logs: (target.logs || []).length, hallazgos: (target.hallazgos || []).length, evid: (target.evidences||[]).length };
+  const afterCounts = { logs: (target.logs || []).length, hallazgos: (target.hallazgos || []).length, evid: (target.evidences||[]).length, docf: (target.doc_files||[]).length };
   addHistory(target, "RESUMEN_FUSION", "merge.counts",
-    `logs:${beforeCounts.logs}, hallazgos:${beforeCounts.hallazgos}, evid:${beforeCounts.evid}`,
-    `logs:${afterCounts.logs}, hallazgos:${afterCounts.hallazgos}, evid:${afterCounts.evid}`,
+    `logs:${beforeCounts.logs}, hallazgos:${beforeCounts.hallazgos}, evid:${beforeCounts.evid}, doc_files:${beforeCounts.docf}`,
+    `logs:${afterCounts.logs}, hallazgos:${afterCounts.hallazgos}, evid:${afterCounts.evid}, doc_files:${afterCounts.docf}`,
     `Fuente: ${noteSource}`
   );
 }
@@ -2305,4 +2521,3 @@ function safeFileName(name) {
 
 // ---------- Start ----------
 init();
-

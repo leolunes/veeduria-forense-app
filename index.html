@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
 
   <title>Veeduría Forense - SECOP II</title>
-  <meta name="description" content="App ciudadana para acompañar ejecución y liquidación de contratos de obra pública (SECOP II) con enfoque preventivo/detectivo de auditoría forense." />
+  <meta name="description" content="App ciudadana para acompañar contratación, ejecución y liquidación de contratos de obra pública (SECOP II) con enfoque preventivo/detectivo de auditoría forense." />
 
   <!-- PWA -->
   <link rel="manifest" href="./manifest.json" />
@@ -78,6 +78,14 @@
       <label>Enlace del proceso (SECOP II)</label>
       <input id="secopUrl" placeholder="https://..." />
 
+      <div class="row">
+        <button id="btnOpenSecop">Abrir SECOP II</button>
+        <button id="btnPickSecop">Elegir proceso desde SECOP II (login) y pegar enlace</button>
+      </div>
+      <div class="small">
+        Sugerencia: abre el proceso en SECOP II, descarga PDF/Word/Excel y luego adjúntalos en <b>Documentos mínimos</b> usando “Adjuntar archivo”.
+      </div>
+
       <label>Entidad</label>
       <input id="secopEntidad" placeholder="Nombre de la entidad" />
 
@@ -120,10 +128,12 @@
       <label>Fase</label>
       <select id="hallazgoFase">
         <option value="">— Selecciona —</option>
-        <option value="Planeación">Planeación</option>
+        <option value="Precontractual">Precontractual</option>
+        <option value="Contractual">Contractual</option>
         <option value="Ejecución">Ejecución</option>
-        <option value="Cambios">Cambios (otrosíes/prórrogas)</option>
-        <option value="Pagos">Pagos</option>
+        <option value="Modificaciones">Modificaciones (otrosíes/prórrogas/adiciones)</option>
+        <option value="Pagos">Pagos y facturación</option>
+        <option value="Legal/Laboral">Cumplimiento legal y laboral</option>
         <option value="Cierre/Liquidación">Cierre/Liquidación</option>
       </select>
 
@@ -141,7 +151,7 @@
       <input id="hallazgoEvidencia" placeholder="https://... o nombre del soporte" />
 
       <label>Impacto / riesgo (por qué importa)</label>
-      <textarea id="hallazgoImpacto" placeholder="Ej: Riesgo de sobrecosto, calidad, seguridad, retraso..."></textarea>
+      <textarea id="hallazgoImpacto" placeholder="Ej: Riesgo de sobrecosto, calidad, seguridad, retraso..." ></textarea>
 
       <label>Solicitud concreta (qué se pide)</label>
       <textarea id="hallazgoSolicitud" placeholder="Ej: Solicito publicar acta X; entregar soportes; aclarar medición..."></textarea>
@@ -180,7 +190,7 @@
           <button id="btnCopyReport">Copiar informe</button>
           <button id="btnDownloadReportTxt">Descargar informe (.txt)</button>
           <button id="btnDownloadHallazgosCsv">Descargar hallazgos (.csv)</button>
-          <button id="btnExportPDF">Exportar PDF (con anexos)</button>
+          <button id="btnExportPDF">Exportar PDF (Imprimir → Guardar como PDF)</button>
         </div>
         <div class="small">
           Nota: el PDF se genera sin servidor: se abre una ventana lista para imprimir. En Chrome/Edge elige “Guardar como PDF”.
@@ -191,7 +201,7 @@
       <section id="tab-documentos" class="tabPanel">
         <h2>Documentos mínimos por tipo de obra</h2>
         <div class="small">
-          Marca el estado de cada documento. Adjunta fotos directamente por documento (quedan offline).
+          Marca el estado de cada documento. Adjunta archivos (PDF/Word/Excel) para que queden vinculados a <b>P01, C02, E04</b>, etc. Esto alimenta el “Riesgo del caso” y facilita solicitudes formales.
         </div>
 
         <label>Buscar en documentos</label>
@@ -323,32 +333,9 @@
   </main>
 
   <footer class="foot small">
-    <span>Guía ciudadana (auditoría forense preventiva/detectiva) - SECOP II · PWA Offline · Multi-caso · Fusión por Proceso ID · Evidencias offline · PDF con anexos</span>
+    <span>Guía ciudadana (auditoría forense preventiva/detectiva) - SECOP II · PWA Offline · Multi-caso · Fusión por Proceso ID · Evidencias offline · PDF</span>
   </footer>
-
-  <!-- MODAL GALERÍA (Hallazgos / Documentos) -->
-  <div id="galleryModal" class="modal hidden" role="dialog" aria-modal="true">
-    <div class="modalCard">
-      <div class="modalHeader">
-        <div>
-          <div id="galleryTitle" class="modalTitle">Galería</div>
-          <div id="gallerySubtitle" class="small"></div>
-        </div>
-        <div class="row">
-          <button id="btnCloseGallery" class="danger">Cerrar</button>
-        </div>
-      </div>
-
-      <div class="modalBody">
-        <label>Buscar dentro de esta galería</label>
-        <input id="gallerySearch" placeholder="Filtrar por nombre o nota..." />
-        <div id="galleryContent" class="thumbGrid"></div>
-        <div id="galleryEmpty" class="small" style="margin-top:10px;"></div>
-      </div>
-    </div>
-  </div>
 
   <script src="app.js"></script>
 </body>
 </html>
-
