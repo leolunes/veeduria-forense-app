@@ -1,7 +1,8 @@
 {
   "name": "Veeduría Forense - SECOP II",
   "short_name": "Veeduría",
-  "start_url": "./index.html",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#0f0f10",
   "theme_color": "#111111",

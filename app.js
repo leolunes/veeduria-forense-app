@@ -1,9 +1,23 @@
+/* =========================================================
+   Veeduría Forense - app.js (COMPLETO)
+   Ajuste: Botones SECOP II (login / pegar link / abrir link guardado)
+   - Se agregó $any()
+   - Se reemplazó el bloque SECOP dentro de bindMainUI() por versión robusta:
+     * binds seguros (no rompen si falta el elemento)
+     * listener delegado (funciona aunque el HTML se renderice después)
+   - Se incluyó Export/Import JSON completo (con evidencias y archivos de docs)
+   ========================================================= */
+
 const DATA_URL = "./data/metodologia.json";
-const STORAGE_KEY = "veeduria_forense_multi_v9"; // nuevo
+const STORAGE_KEY = "veeduria_forense_multi_v10"; // sube versión por cambios
+
+// === SECOP II (URLs base) ===
+// Nota: en PWA estática NO se puede loguear por ti. Abrimos SECOP en pestaña y tú pegas el link del proceso.
+const SECOP_HOME_URL = "https://community.secop.gov.co/";
 
 // Evidencias y Documentos adjuntos (IndexedDB)
 const EVID_DB = "veeduria_evidences_v2";
-const EVID_DB_VERSION = 2; // <-- sube a 2 para crear nuevo store de archivos de documentos
+const EVID_DB_VERSION = 2;
 const EVID_STORE = "blobs";
 const DOC_STORE = "docblobs";
 
@@ -18,10 +32,17 @@ let pendingHallazgoFiles = [];
 // ---------- Helpers DOM ----------
 function $(id) { return document.getElementById(id); }
 
+// Busca el primer elemento existente entre varios ids (robusto si el HTML cambia)
+function $any(...ids) {
+  for (const id of ids) {
+    const el = document.getElementById(id);
+    if (el) return el;
+  }
+  return null;
+}
+
 // ---------- Limpieza de “texto tutorial” en la parte superior ----------
 function removeTopTutorialText() {
-  // Este texto largo suele quedar pegado en un <p>/<div> del header.
-  // Lo eliminamos/ocultamos si aparece en el DOM.
   const needles = [
     "Listo. Partiendo exactamente de tus",
     "⚠️ Nota técnica inevitable",
@@ -29,19 +50,14 @@ function removeTopTutorialText() {
     "index.html Copia y pega este archivo completo",
     "btnPickSecop"
   ];
-
   try {
     const nodes = Array.from(document.querySelectorAll("body *")).slice(0, 2000);
     for (const el of nodes) {
       if (!el || !el.textContent) continue;
       const t = el.textContent.trim();
       if (!t) continue;
-
       const hit = needles.some(n => t.includes(n));
       if (!hit) continue;
-
-      // Si el elemento es “grande” (mucho texto) lo ocultamos.
-      // Evita romper layouts si es parte del header.
       el.style.display = "none";
     }
   } catch {}
@@ -93,7 +109,6 @@ async function putEvidenceBlob(record) {
     tx.onerror = () => reject(tx.error);
   });
 }
-
 async function getEvidenceBlob(id) {
   const db = await openEvidenceDB();
   return new Promise((resolve, reject) => {
@@ -103,7 +118,6 @@ async function getEvidenceBlob(id) {
     req.onerror = () => reject(req.error);
   });
 }
-
 async function deleteEvidenceBlob(id) {
   const db = await openEvidenceDB();
   return new Promise((resolve, reject) => {
@@ -113,7 +127,6 @@ async function deleteEvidenceBlob(id) {
     tx.onerror = () => reject(tx.error);
   });
 }
-
 async function getAllEvidenceForCase(caseId) {
   const db = await openEvidenceDB();
   return new Promise((resolve, reject) => {
@@ -135,7 +148,6 @@ async function putDocBlob(record) {
     tx.onerror = () => reject(tx.error);
   });
 }
-
 async function getDocBlob(id) {
   const db = await openEvidenceDB();
   return new Promise((resolve, reject) => {
@@ -145,7 +157,6 @@ async function getDocBlob(id) {
     req.onerror = () => reject(req.error);
   });
 }
-
 async function deleteDocBlob(id) {
   const db = await openEvidenceDB();
   return new Promise((resolve, reject) => {
@@ -155,7 +166,6 @@ async function deleteDocBlob(id) {
     tx.onerror = () => reject(tx.error);
   });
 }
-
 async function getAllDocFilesForCase(caseId) {
   const db = await openEvidenceDB();
   return new Promise((resolve, reject) => {
@@ -166,7 +176,6 @@ async function getAllDocFilesForCase(caseId) {
     req.onerror = () => reject(req.error);
   });
 }
-
 async function getDocFilesByDocId(caseId, docId) {
   const db = await openEvidenceDB();
   return new Promise((resolve, reject) => {
@@ -178,7 +187,7 @@ async function getDocFilesByDocId(caseId, docId) {
   });
 }
 
-// ---------- Base64 helpers (ya existían) ----------
+// ---------- Base64 helpers ----------
 function blobToBase64(blob) {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -191,7 +200,6 @@ function blobToBase64(blob) {
     r.readAsDataURL(blob);
   });
 }
-
 function base64ToBlob(base64, mime) {
   const bin = atob(base64);
   const len = bin.length;
@@ -227,29 +235,32 @@ function loadAppState() {
   appState.cases.forEach(c => {
     if (!Array.isArray(c.history)) c.history = [];
     if (!Array.isArray(c.evidences)) c.evidences = []; // metadata (no blobs)
-    if (!Array.isArray(c.doc_files)) c.doc_files = []; // metadata (no blobs) para Documentos mínimos
+    if (!Array.isArray(c.doc_files)) c.doc_files = []; // metadata (no blobs)
     if (!c.caso) c.caso = {};
-    if (typeof c.caso.contratoNombre !== "string") c.caso.contratoNombre = ""; // <-- NUEVO
+    if (typeof c.caso.contratoNombre !== "string") c.caso.contratoNombre = "";
+
+    // Robustez: emails por caso
+    if (!c.caso.emails || typeof c.caso.emails !== "object") {
+      c.caso.emails = { entidad: [], personeria: [], contraloria: [], procuraduria: [] };
+    }
+    ["entidad","personeria","contraloria","procuraduria"].forEach(k => {
+      if (!Array.isArray(c.caso.emails[k])) c.caso.emails[k] = [];
+    });
   });
 }
-
 function saveAppState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
 }
-
 function getActiveCase() {
   return appState.cases.find(c => c.id === appState.activeCaseId) || appState.cases[0];
 }
-
 function touchCase(c) {
   c.actualizado_en = new Date().toISOString();
 }
-
 function getUserName() {
   const u = (appState.userName || "").trim();
   return u || "Usuario (sin nombre)";
 }
-
 function addHistory(c, action, field = "", from = "", to = "", note = "") {
   c.history = c.history || [];
   c.history.unshift({
@@ -278,7 +289,15 @@ function makeEmptyCase(nombre) {
       procesoId: "",
       ubicacion: "",
       tipoInfra: "",
-      contratoNombre: "" // <-- NUEVO: Nombre del Contrato
+      contratoNombre: "",
+
+      // NUEVO: correos por caso
+      emails: {
+        entidad: [],
+        personeria: [],
+        contraloria: [],
+        procuraduria: []
+      }
     },
     checks: {},
     logs: [],
@@ -295,7 +314,7 @@ function makeEmptyCase(nombre) {
 function deriveCaseNameFromFields(c) {
   const ent = c.caso.entidad?.trim();
   const pid = c.caso.procesoId?.trim();
-  const contrato = c.caso.contratoNombre?.trim(); // <-- NUEVO
+  const contrato = c.caso.contratoNombre?.trim();
   const tipo = getTipoNombre(c.caso.tipoInfra || "");
   const pieces = [pid, ent, contrato, tipo].filter(Boolean);
   return pieces.length ? pieces.join(" · ") : c.nombre;
@@ -303,6 +322,7 @@ function deriveCaseNameFromFields(c) {
 
 function renderCaseSelect() {
   const sel = $("caseSelect");
+  if (!sel) return;
   const active = getActiveCase();
   sel.innerHTML = appState.cases.map(c => {
     const label = escapeHtml(c.nombre || deriveCaseNameFromFields(c) || c.id);
@@ -362,7 +382,6 @@ async function cleanupCaseEvidenceBlobs(caseId) {
     for (const r of recs) await deleteEvidenceBlob(r.id);
   } catch {}
 }
-
 async function cleanupCaseDocBlobs(caseId) {
   try {
     const recs = await getAllDocFilesForCase(caseId);
@@ -385,7 +404,6 @@ function updateOfflineBadge() {
   if (!el) return;
   el.classList.toggle("hidden", navigator.onLine);
 }
-
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
   window.addEventListener("load", () => {
@@ -402,7 +420,8 @@ function bindTabs() {
       t.classList.add("active");
       const id = t.getAttribute("data-tab");
       [...document.querySelectorAll(".tabPanel")].forEach(p => p.classList.remove("active"));
-      $(id).classList.add("active");
+      const panel = $(id);
+      if (panel) panel.classList.add("active");
 
       if (id === "tab-documentos") renderDocsView();
       if (id === "tab-evidencias") renderEvidenceView();
@@ -417,8 +436,6 @@ function bindTabs() {
 // ---------- Init ----------
 async function init() {
   loadAppState();
-
-  // Oculta el texto tutorial pegado arriba (si existe)
   removeTopTutorialText();
 
   const res = await fetch(DATA_URL, { cache: "no-store" });
@@ -429,7 +446,8 @@ async function init() {
   window.addEventListener("online", updateOfflineBadge);
   window.addEventListener("offline", updateOfflineBadge);
 
-  $("appTitle").textContent = metodologia.titulo || "Metodología";
+  const titleEl = $("appTitle");
+  if (titleEl) titleEl.textContent = metodologia.titulo || "Metodología";
 
   bindTabs();
   renderTipoInfraSelector();
@@ -447,10 +465,15 @@ async function init() {
 
 // ---------- Perfil ----------
 function bindUserUI() {
-  $("userName").value = appState.userName || "";
-  $("btnSaveUser").addEventListener("click", () => {
+  const input = $("userName");
+  if (input) input.value = appState.userName || "";
+
+  const btn = $("btnSaveUser");
+  if (!btn) return;
+
+  btn.addEventListener("click", () => {
     const prev = appState.userName || "";
-    appState.userName = $("userName").value.trim();
+    appState.userName = (input?.value || "").trim();
     saveAppState();
     alert("Nombre guardado.");
     const c = getActiveCase();
@@ -468,15 +491,27 @@ function loadActiveCaseToUI() {
   renderCaseSelect();
   updateSubtitle();
 
-  $("secopUrl").value = c.caso.secopUrl || "";
-  $("secopEntidad").value = c.caso.entidad || "";
-  $("secopId").value = c.caso.procesoId || "";
-  $("secopUbicacion").value = c.caso.ubicacion || "";
-  $("tipoInfra").value = c.caso.tipoInfra || "";
+  const secopUrl = $("secopUrl"); if (secopUrl) secopUrl.value = c.caso.secopUrl || "";
+  const secopEntidad = $("secopEntidad"); if (secopEntidad) secopEntidad.value = c.caso.entidad || "";
+  const secopId = $("secopId"); if (secopId) secopId.value = c.caso.procesoId || "";
+  const secopUbic = $("secopUbicacion"); if (secopUbic) secopUbic.value = c.caso.ubicacion || "";
+  const tipoInfra = $("tipoInfra"); if (tipoInfra) tipoInfra.value = c.caso.tipoInfra || "";
 
-  // NUEVO: Nombre del Contrato (si existe el input en index.html)
+  // Nombre del proceso / contrato
   const contratoEl = $("secopContrato");
   if (contratoEl) contratoEl.value = c.caso.contratoNombre || "";
+
+  // Emails
+  const em = c.caso.emails || { entidad: [], personeria: [], contraloria: [], procuraduria: [] };
+  const setEmails = (id, arr) => {
+    const el = $(id);
+    if (!el) return;
+    el.value = Array.isArray(arr) ? arr.join(", ") : "";
+  };
+  setEmails("emailsEntidad", em.entidad);
+  setEmails("emailsPersoneria", em.personeria);
+  setEmails("emailsContraloria", em.contraloria);
+  setEmails("emailsProcuraduria", em.procuraduria);
 
   renderLogs();
   renderHallazgos();
@@ -492,195 +527,476 @@ function loadActiveCaseToUI() {
 }
 
 function updateSubtitle() {
+  const el = $("appSubtitle");
+  if (!el) return;
   const c = getActiveCase();
   const base = (metodologia.descripcion || "").trim();
   const tipoNombre = getTipoNombre(c.caso.tipoInfra || "") || "—";
   const p = computeOverallProgress();
   const contrato = (c.caso.contratoNombre || "").trim();
-  const contratoTxt = contrato ? ` · Contrato: ${contrato}` : "";
-  $("appSubtitle").textContent =
+  const contratoTxt = contrato ? ` · Proceso/Contrato: ${contrato}` : "";
+  el.textContent =
     `${base} · Caso: ${c.nombre} · Progreso: ${p.percent}% (${p.done}/${p.total}) · Tipo: ${tipoNombre} · Ubicación: ${c.caso.ubicacion || "—"}${contratoTxt}`;
 }
 
 // ---------- Bind Caso ----------
 function bindCaseUI() {
-  $("caseSelect").addEventListener("change", (e) => switchActiveCase(e.target.value));
-  $("btnNewCase").addEventListener("click", newCase);
-  $("btnDuplicateCase").addEventListener("click", duplicateActiveCase);
-  $("btnDeleteCase").addEventListener("click", deleteActiveCase);
+  const sel = $("caseSelect");
+  if (sel) sel.addEventListener("change", (e) => switchActiveCase(e.target.value));
 
-  $("btnImportCase").addEventListener("click", () => $("fileImport").click());
-  $("fileImport").addEventListener("change", handleImportFile);
+  const btnNew = $("btnNewCase");
+  if (btnNew) btnNew.addEventListener("click", newCase);
 
-  $("btnExportActive").addEventListener("click", exportActiveCaseJSON);
-  $("btnExportAll").addEventListener("click", exportAllCasesJSON);
+  const btnDup = $("btnDuplicateCase");
+  if (btnDup) btnDup.addEventListener("click", duplicateActiveCase);
 
-  $("btnReset").addEventListener("click", () => {
-    if (!confirm("¿Seguro que deseas reiniciar TODOS los casos y el progreso?")) return;
-    localStorage.removeItem(STORAGE_KEY);
-    location.reload();
-  });
+  const btnDel = $("btnDeleteCase");
+  if (btnDel) btnDel.addEventListener("click", deleteActiveCase);
+
+  const btnImport = $("btnImportCase");
+  const fileImport = $("fileImport");
+  if (btnImport && fileImport) {
+    btnImport.addEventListener("click", () => fileImport.click());
+    fileImport.addEventListener("change", handleImportFile);
+  }
+
+  const btnExportActive = $("btnExportActive");
+  if (btnExportActive) btnExportActive.addEventListener("click", exportActiveCaseJSON);
+
+  const btnExportAll = $("btnExportAll");
+  if (btnExportAll) btnExportAll.addEventListener("click", exportAllCasesJSON);
+
+  const btnReset = $("btnReset");
+  if (btnReset) {
+    btnReset.addEventListener("click", () => {
+      if (!confirm("¿Seguro que deseas reiniciar TODOS los casos y el progreso?")) return;
+      localStorage.removeItem(STORAGE_KEY);
+      location.reload();
+    });
+  }
 }
 
 // ---------- Bind búsquedas ----------
 function bindSearchUI() {
-  $("searchLogs").addEventListener("input", () => renderLogs());
-  $("searchHallazgos").addEventListener("input", () => renderHallazgos());
-  $("searchDocs").addEventListener("input", () => renderDocsView());
-  $("searchHistory").addEventListener("input", () => renderHistoryView());
-  $("searchEvidence").addEventListener("input", () => renderEvidenceView());
+  const a = $("searchLogs"); if (a) a.addEventListener("input", () => renderLogs());
+  const b = $("searchHallazgos"); if (b) b.addEventListener("input", () => renderHallazgos());
+  const c = $("searchDocs"); if (c) c.addEventListener("input", () => renderDocsView());
+  const d = $("searchHistory"); if (d) d.addEventListener("input", () => renderHistoryView());
+  const e = $("searchEvidence"); if (e) e.addEventListener("input", () => renderEvidenceView());
+}
+
+/* ==========================
+   EMAIL / MAILTO helpers
+   ========================== */
+function parseEmails(raw) {
+  const s = String(raw || "");
+  const parts = s.split(/[\s,;]+/g).map(x => x.trim()).filter(Boolean);
+  const ok = [];
+  for (const p of parts) {
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p)) ok.push(p);
+  }
+  return [...new Set(ok)];
+}
+function buildMailto(toList, subject, body) {
+  const to = (toList || []).filter(Boolean).join(",");
+  const sub = encodeURIComponent(subject || "");
+  const maxBody = 14000;
+  const safeBody = (body || "").slice(0, maxBody);
+  const bod = encodeURIComponent(safeBody);
+  return `mailto:${to}?subject=${sub}&body=${bod}`;
+}
+function pickEmailsByDest(c, dest) {
+  const em = c.caso?.emails || {};
+  if (dest === "Personeria") return em.personeria || [];
+  if (dest === "Contraloria") return em.contraloria || [];
+  if (dest === "Procuraduria") return em.procuraduria || [];
+  return em.entidad || [];
+}
+function buildMailSubject(c, destLabel) {
+  const pid = c.caso?.procesoId || "SIN-ID";
+  const nom = c.caso?.contratoNombre || "SIN-NOMBRE";
+  return `Veeduría ciudadana - ${destLabel} - Proceso ${pid} - ${nom}`;
 }
 
 // ---------- Bind general ----------
 function bindMainUI() {
-  $("btnSaveCase").addEventListener("click", () => {
-    const c = getActiveCase();
-    const prev = { ...c.caso };
+  // Guardar caso
+  const btnSave = $("btnSaveCase");
+  if (btnSave) {
+    btnSave.addEventListener("click", () => {
+      const c = getActiveCase();
+      const prev = { ...c.caso };
 
-    c.caso.secopUrl = $("secopUrl").value.trim();
-    c.caso.entidad = $("secopEntidad").value.trim();
-    c.caso.procesoId = $("secopId").value.trim();
-    c.caso.ubicacion = $("secopUbicacion").value.trim();
-    c.caso.tipoInfra = $("tipoInfra").value;
+      const secopUrl = $("secopUrl");
+      const secopEntidad = $("secopEntidad");
+      const secopId = $("secopId");
+      const secopUbic = $("secopUbicacion");
+      const tipoInfra = $("tipoInfra");
 
-    // NUEVO: contratoNombre (si existe el input)
-    const contratoEl = $("secopContrato");
-    c.caso.contratoNombre = contratoEl ? (contratoEl.value || "").trim() : (c.caso.contratoNombre || "");
+      c.caso.secopUrl = (secopUrl?.value || "").trim();
+      c.caso.entidad = (secopEntidad?.value || "").trim();
+      c.caso.procesoId = (secopId?.value || "").trim();
+      c.caso.ubicacion = (secopUbic?.value || "").trim();
+      c.caso.tipoInfra = (tipoInfra?.value || "");
 
-    const prevName = c.nombre;
-    if (c.nombre?.startsWith("Caso")) c.nombre = deriveCaseNameFromFields(c);
+      // Nombre del proceso/contrato
+      const contratoEl = $("secopContrato");
+      c.caso.contratoNombre = contratoEl ? (contratoEl.value || "").trim() : (c.caso.contratoNombre || "");
 
-    Object.keys(prev).forEach(k => {
-      const a = prev[k] || "";
-      const b = c.caso[k] || "";
-      if (a !== b) addHistory(c, "ACTUALIZAR_CASO", `caso.${k}`, a, b, "");
+      // Guardar emails (normalizados)
+      c.caso.emails = c.caso.emails || { entidad: [], personeria: [], contraloria: [], procuraduria: [] };
+      const prevEmails = JSON.parse(JSON.stringify(c.caso.emails));
+
+      c.caso.emails.entidad = parseEmails($("emailsEntidad")?.value);
+      c.caso.emails.personeria = parseEmails($("emailsPersoneria")?.value);
+      c.caso.emails.contraloria = parseEmails($("emailsContraloria")?.value);
+      c.caso.emails.procuraduria = parseEmails($("emailsProcuraduria")?.value);
+
+      ["entidad","personeria","contraloria","procuraduria"].forEach(k => {
+        const a = (prevEmails[k] || []).join(", ");
+        const b = (c.caso.emails[k] || []).join(", ");
+        if (a !== b) addHistory(c, "ACTUALIZAR_CASO", `caso.emails.${k}`, a, b, "");
+      });
+
+      const prevName = c.nombre;
+      if (c.nombre?.startsWith("Caso")) c.nombre = deriveCaseNameFromFields(c);
+
+      Object.keys(prev).forEach(k => {
+        const a = prev[k] || "";
+        const b = c.caso[k] || "";
+        if (a !== b) addHistory(c, "ACTUALIZAR_CASO", `caso.${k}`, a, b, "");
+      });
+      if (prevName !== c.nombre) addHistory(c, "ACTUALIZAR_CASO", "case.nombre", prevName, c.nombre, "Nombre derivado/actualizado");
+
+      touchCase(c);
+      saveAppState();
+      renderCaseSelect();
+      updateSubtitle();
+      alert("Caso guardado.");
+
+      if (currentPhaseId) openPhase(currentPhaseId);
+      renderDocsView();
+      renderRiskView();
+      updateReportBox();
+      updatePeticionBox(true);
+      updateInformeBox(true);
+      renderHistoryView();
     });
-    if (prevName !== c.nombre) addHistory(c, "ACTUALIZAR_CASO", "case.nombre", prevName, c.nombre, "Nombre derivado/actualizado");
+  }
 
-    touchCase(c);
-    saveAppState();
-    renderCaseSelect();
-    updateSubtitle();
-    alert("Caso guardado.");
+  /* ==========================
+     SECOP II - botones robustos (FIX)
+     ========================== */
 
-    if (currentPhaseId) openPhase(currentPhaseId);
-    renderDocsView();
-    renderRiskView();
-    updateReportBox();
-    updatePeticionBox(true);
-    updateInformeBox(true);
-    renderHistoryView();
-  });
-
-  // Abrir SECOP II
-  $("btnOpenSecop").addEventListener("click", () => {
+  function openSavedProcessLink() {
     const c = getActiveCase();
     const url = (c.caso.secopUrl || "").trim();
     if (!url) {
-      alert("Primero ingresa el enlace del proceso (SECOP II) en el campo correspondiente.");
+      alert("No hay link SECOP guardado. Pega el enlace del proceso en el campo correspondiente y guarda el caso.");
       return;
     }
     window.open(url, "_blank", "noreferrer");
-  });
+  }
+
+  function openSecopLogin() {
+    window.open(SECOP_HOME_URL, "_blank", "noreferrer");
+  }
+
+  async function promptAndSaveSecopLink() {
+    // Abre SECOP para que el veedor inicie sesión y encuentre el proceso
+    window.open(SECOP_HOME_URL, "_blank", "noreferrer");
+
+    const pasted = prompt("Pega aquí el LINK del proceso (SECOP II) que vas a auditar:", "");
+    if (!pasted) return;
+
+    const value = pasted.trim();
+    const input = $("secopUrl");
+    if (input) input.value = value;
+
+    const c = getActiveCase();
+    const prev = c.caso.secopUrl || "";
+    c.caso.secopUrl = value;
+
+    if (prev !== value) {
+      addHistory(c, "ACTUALIZAR_CASO", "caso.secopUrl", prev, value, "Pegado desde selector SECOP");
+      touchCase(c);
+      saveAppState();
+      updateSubtitle();
+      updateReportBox();
+      updatePeticionBox(true);
+      updateInformeBox(true);
+      renderHistoryView();
+      alert("Link SECOP guardado en el caso.");
+    }
+  }
+
+  async function copySavedSecopLink() {
+    const c = getActiveCase();
+    const url = (c.caso.secopUrl || "").trim();
+    if (!url) return alert("No hay link SECOP guardado en este caso.");
+    await copyText(url, "Link SECOP copiado.");
+  }
+
+  // Bind directo si existen (por si tu HTML los tiene fijos)
+  const btnOpenProc = $any("btnOpenSecop", "btnOpenSecopFromDocs", "btnOpenSecopProceso", "btnOpenSecopProcess");
+  if (btnOpenProc) btnOpenProc.addEventListener("click", openSavedProcessLink);
+
+  const btnLogin = $any("btnOpenSecopLogin", "btnOpenSecopII", "btnOpenSecopHome");
+  if (btnLogin) btnLogin.addEventListener("click", openSecopLogin);
+
+  const btnPick = $any("btnPickSecop", "btnPickSecopLink", "btnChooseSecopProcess");
+  if (btnPick) btnPick.addEventListener("click", promptAndSaveSecopLink);
+
+  const btnCopy = $any("btnCopySecopLink", "btnCopySecopUrl");
+  if (btnCopy) btnCopy.addEventListener("click", copySavedSecopLink);
+
+  // Listener delegado: funciona aunque los botones se creen después o cambien por re-render
+  if (!window.__secopDelegatedBound) {
+    window.__secopDelegatedBound = true;
+
+    document.addEventListener("click", async (e) => {
+      const btn = e.target?.closest?.("button");
+      if (!btn) return;
+
+      const id = btn.id || "";
+      const txt = (btn.textContent || "").trim().toLowerCase();
+
+      // Abrir proceso (link guardado)
+      if (
+        id === "btnOpenSecop" ||
+        id === "btnOpenSecopFromDocs" ||
+        txt.includes("abrir proceso") ||
+        txt.includes("proceso activo") ||
+        txt.includes("link guardado")
+      ) {
+        openSavedProcessLink();
+        return;
+      }
+
+      // Abrir SECOP II (login)
+      if (
+        id === "btnOpenSecopLogin" ||
+        (txt.includes("abrir secop") && txt.includes("login"))
+      ) {
+        openSecopLogin();
+        return;
+      }
+
+      // Elegir proceso desde SECOP II y pegar enlace
+      if (
+        id === "btnPickSecop" ||
+        txt.includes("elegir proceso") ||
+        (txt.includes("pegar") && txt.includes("enlace"))
+      ) {
+        await promptAndSaveSecopLink();
+        return;
+      }
+
+      // Copiar link SECOP del caso
+      if (
+        id === "btnCopySecopLink" ||
+        (txt.includes("copiar") && txt.includes("secop"))
+      ) {
+        await copySavedSecopLink();
+        return;
+      }
+    });
+  }
 
   // Bitácora
-  $("btnAddLog").addEventListener("click", () => {
-    const c = getActiveCase();
-    const text = $("logText").value.trim();
-    if (!text) return;
+  const btnAddLog = $("btnAddLog");
+  if (btnAddLog) {
+    btnAddLog.addEventListener("click", () => {
+      const c = getActiveCase();
+      const logText = $("logText");
+      const text = (logText?.value || "").trim();
+      if (!text) return;
 
-    c.logs.unshift({ ts: new Date().toISOString(), text });
-    addHistory(c, "AGREGAR_BITACORA", "logs", "", text, "");
+      c.logs.unshift({ ts: new Date().toISOString(), text });
+      addHistory(c, "AGREGAR_BITACORA", "logs", "", text, "");
 
-    $("logText").value = "";
-    touchCase(c);
-    saveAppState();
-    renderLogs();
-    updateReportBox();
-    renderRiskView();
-    renderHistoryView();
-  });
+      if (logText) logText.value = "";
+      touchCase(c);
+      saveAppState();
+      renderLogs();
+      updateReportBox();
+      renderRiskView();
+      renderHistoryView();
+    });
+  }
 
-  $("btnAddLogPhoto").addEventListener("click", () => $("logPhotoInput").click());
-  $("logPhotoInput").addEventListener("change", async (e) => {
-    const files = [...(e.target.files || [])];
-    if (!files.length) return;
-    const c = getActiveCase();
+  const btnAddLogPhoto = $("btnAddLogPhoto");
+  const logPhotoInput = $("logPhotoInput");
+  if (btnAddLogPhoto && logPhotoInput) {
+    btnAddLogPhoto.addEventListener("click", () => logPhotoInput.click());
+    logPhotoInput.addEventListener("change", async (e) => {
+      const files = [...(e.target.files || [])];
+      if (!files.length) return;
+      const c = getActiveCase();
 
-    for (const f of files) {
-      await addEvidenceFiles(c, [f], { type: "log", id: "" }, "Foto bitácora");
-    }
-    e.target.value = "";
-    renderEvidenceView();
-    renderHistoryView();
-    alert("Foto(s) agregada(s) a Evidencias (offline).");
-  });
+      for (const f of files) {
+        await addEvidenceFiles(c, [f], { type: "log", id: "" }, "Foto bitácora");
+      }
+      e.target.value = "";
+      renderEvidenceView();
+      renderHistoryView();
+      alert("Foto(s) agregada(s) a Evidencias (offline).");
+    });
+  }
 
   // Hallazgos
-  $("btnAddHallazgo").addEventListener("click", addHallazgo);
-  $("btnClearHallazgo").addEventListener("click", () => clearHallazgoForm());
+  const btnAddHallazgo = $("btnAddHallazgo");
+  if (btnAddHallazgo) btnAddHallazgo.addEventListener("click", addHallazgo);
 
-  $("btnAddHallazgoPhotos").addEventListener("click", () => $("hallazgoPhotosInput").click());
-  $("hallazgoPhotosInput").addEventListener("change", (e) => {
-    pendingHallazgoFiles = [...(e.target.files || [])];
-    $("hallazgoPhotosHint").textContent = `${pendingHallazgoFiles.length} foto(s) seleccionada(s) para adjuntar al próximo hallazgo.`;
-  });
+  const btnClearHallazgo = $("btnClearHallazgo");
+  if (btnClearHallazgo) btnClearHallazgo.addEventListener("click", () => clearHallazgoForm());
+
+  const btnAddHallazgoPhotos = $("btnAddHallazgoPhotos");
+  const hallazgoPhotosInput = $("hallazgoPhotosInput");
+  if (btnAddHallazgoPhotos && hallazgoPhotosInput) {
+    btnAddHallazgoPhotos.addEventListener("click", () => hallazgoPhotosInput.click());
+    hallazgoPhotosInput.addEventListener("change", (e) => {
+      pendingHallazgoFiles = [...(e.target.files || [])];
+      const hint = $("hallazgoPhotosHint");
+      if (hint) hint.textContent = `${pendingHallazgoFiles.length} foto(s) seleccionada(s) para adjuntar al próximo hallazgo.`;
+    });
+  }
 
   // Report
-  $("btnCopyReport").addEventListener("click", () => copyText($("reportBox").value, "Informe copiado."));
-  $("btnDownloadReportTxt").addEventListener("click", () => downloadText(buildPreliminaryReport(), "informe_preliminar_veeduria.txt"));
-  $("btnDownloadHallazgosCsv").addEventListener("click", () => downloadText(buildHallazgosCSV(), "hallazgos_veeduria.csv"));
-  $("btnDownloadDocsCsv").addEventListener("click", () => downloadText(buildDocsCSV(), "documentos_veeduria.csv"));
-  $("btnDownloadRiskTxt").addEventListener("click", () => downloadText(buildRiskSummaryTxt(), "riesgo_caso_veeduria.txt"));
+  const btnCopyReport = $("btnCopyReport");
+  if (btnCopyReport) btnCopyReport.addEventListener("click", () => copyText($("reportBox")?.value || "", "Informe copiado."));
 
-  // PDF (sin servidor): ventana imprimible
-  $("btnExportPDF").addEventListener("click", () => exportReportToPDF());
+  const btnDownloadReportTxt = $("btnDownloadReportTxt");
+  if (btnDownloadReportTxt) btnDownloadReportTxt.addEventListener("click", () => downloadText(buildPreliminaryReport(), "informe_preliminar_veeduria.txt"));
+
+  const btnDownloadHallazgosCsv = $("btnDownloadHallazgosCsv");
+  if (btnDownloadHallazgosCsv) btnDownloadHallazgosCsv.addEventListener("click", () => downloadText(buildHallazgosCSV(), "hallazgos_veeduria.csv"));
+
+  const btnDownloadDocsCsv = $("btnDownloadDocsCsv");
+  if (btnDownloadDocsCsv) btnDownloadDocsCsv.addEventListener("click", () => downloadText(buildDocsCSV(), "documentos_veeduria.csv"));
+
+  const btnDownloadRiskTxt = $("btnDownloadRiskTxt");
+  if (btnDownloadRiskTxt) btnDownloadRiskTxt.addEventListener("click", () => downloadText(buildRiskSummaryTxt(), "riesgo_caso_veeduria.txt"));
+
+  const btnExportPDF = $("btnExportPDF");
+  if (btnExportPDF) btnExportPDF.addEventListener("click", () => exportReportToPDF());
 
   // Petición
-  $("btnGenPeticion").addEventListener("click", () => updatePeticionBox(true));
-  $("btnCopyPeticion").addEventListener("click", () => copyText($("peticionBox").value, "Derecho de petición copiado."));
-  $("btnDownloadPeticionTxt").addEventListener("click", () => downloadText($("peticionBox").value, "derecho_peticion_veeduria.txt"));
-  $("peticionDest").addEventListener("change", () => updatePeticionBox(true));
-  $("peticionFiltro").addEventListener("change", () => updatePeticionBox(true));
+  const btnGenPeticion = $("btnGenPeticion");
+  if (btnGenPeticion) btnGenPeticion.addEventListener("click", () => updatePeticionBox(true));
+
+  const btnCopyPeticion = $("btnCopyPeticion");
+  if (btnCopyPeticion) btnCopyPeticion.addEventListener("click", () => copyText($("peticionBox")?.value || "", "Derecho de petición copiado."));
+
+  const btnDownloadPeticionTxt = $("btnDownloadPeticionTxt");
+  if (btnDownloadPeticionTxt) btnDownloadPeticionTxt.addEventListener("click", () => downloadText($("peticionBox")?.value || "", "derecho_peticion_veeduria.txt"));
+
+  const petDest = $("peticionDest");
+  if (petDest) petDest.addEventListener("change", () => updatePeticionBox(true));
+
+  const petFiltro = $("peticionFiltro");
+  if (petFiltro) petFiltro.addEventListener("change", () => updatePeticionBox(true));
+
+  const btnEmailPet = $("btnEmailPeticion");
+  if (btnEmailPet) {
+    btnEmailPet.addEventListener("click", () => {
+      const dest = $("peticionDest")?.value || "Entidad";
+      openPeticionMailFor(dest);
+    });
+  }
 
   // Informes
-  $("btnGenInforme").addEventListener("click", () => updateInformeBox(true));
-  $("btnCopyInforme").addEventListener("click", () => copyText($("informeBox").value, "Informe copiado."));
-  $("btnDownloadInformeTxt").addEventListener("click", () => downloadText($("informeBox").value, "informe_veeduria_destinatario.txt"));
-  $("informeDest").addEventListener("change", () => updateInformeBox(true));
-  $("informeEnfoque").addEventListener("change", () => updateInformeBox(true));
+  const btnGenInforme = $("btnGenInforme");
+  if (btnGenInforme) btnGenInforme.addEventListener("click", () => updateInformeBox(true));
+
+  const btnCopyInforme = $("btnCopyInforme");
+  if (btnCopyInforme) btnCopyInforme.addEventListener("click", () => copyText($("informeBox")?.value || "", "Informe copiado."));
+
+  const btnDownloadInformeTxt = $("btnDownloadInformeTxt");
+  if (btnDownloadInformeTxt) btnDownloadInformeTxt.addEventListener("click", () => downloadText($("informeBox")?.value || "", "informe_veeduria_destinatario.txt"));
+
+  const infDest = $("informeDest");
+  if (infDest) infDest.addEventListener("change", () => updateInformeBox(true));
+
+  const infEnf = $("informeEnfoque");
+  if (infEnf) infEnf.addEventListener("change", () => updateInformeBox(true));
 
   // Historial
-  $("btnExportHistoryCsv").addEventListener("click", () => downloadText(buildHistoryCSV(), "historial_cambios.csv"));
-  $("btnClearHistory").addEventListener("click", () => {
-    const c = getActiveCase();
-    if (!confirm("¿Borrar el historial del caso activo?")) return;
-    c.history = [];
-    addHistory(c, "LIMPIAR_HISTORIAL", "history", "contenía registros", "vacío", "");
-    touchCase(c);
-    saveAppState();
-    renderHistoryView();
-  });
+  const btnExportHistoryCsv = $("btnExportHistoryCsv");
+  if (btnExportHistoryCsv) btnExportHistoryCsv.addEventListener("click", () => downloadText(buildHistoryCSV(), "historial_cambios.csv"));
+
+  const btnClearHistory = $("btnClearHistory");
+  if (btnClearHistory) {
+    btnClearHistory.addEventListener("click", () => {
+      const c = getActiveCase();
+      if (!confirm("¿Borrar el historial del caso activo?")) return;
+      c.history = [];
+      addHistory(c, "LIMPIAR_HISTORIAL", "history", "contenía registros", "vacío", "");
+      touchCase(c);
+      saveAppState();
+      renderHistoryView();
+    });
+  }
 
   // Evidencias tab
-  $("btnAddEvidenceGeneral").addEventListener("click", () => $("evidenceGeneralInput").click());
-  $("evidenceGeneralInput").addEventListener("change", async (e) => {
-    const files = [...(e.target.files || [])];
-    if (!files.length) return;
-    const c = getActiveCase();
-    await addEvidenceFiles(c, files, { type: "general", id: "" }, "Evidencia general");
-    e.target.value = "";
-    renderEvidenceView();
-    renderHistoryView();
-    alert("Evidencia(s) agregada(s).");
-  });
+  const btnAddEvidenceGeneral = $("btnAddEvidenceGeneral");
+  const evidenceGeneralInput = $("evidenceGeneralInput");
+  if (btnAddEvidenceGeneral && evidenceGeneralInput) {
+    btnAddEvidenceGeneral.addEventListener("click", () => evidenceGeneralInput.click());
+    evidenceGeneralInput.addEventListener("change", async (e) => {
+      const files = [...(e.target.files || [])];
+      if (!files.length) return;
+      const c = getActiveCase();
+      await addEvidenceFiles(c, files, { type: "general", id: "" }, "Evidencia general");
+      e.target.value = "";
+      renderEvidenceView();
+      renderHistoryView();
+      alert("Evidencia(s) agregada(s).");
+    });
+  }
 
-  $("btnExportEvidenceCsv").addEventListener("click", () => downloadText(buildEvidenceCSV(), "evidencias_listado.csv"));
+  const btnExportEvidenceCsv = $("btnExportEvidenceCsv");
+  if (btnExportEvidenceCsv) btnExportEvidenceCsv.addEventListener("click", () => downloadText(buildEvidenceCSV(), "evidencias_listado.csv"));
+
+  // Botones rápidos mailto en sidebar
+  const b1 = $("btnMailEntidad"); if (b1) b1.addEventListener("click", () => openPeticionMailFor("Entidad"));
+  const b2 = $("btnMailPersoneria"); if (b2) b2.addEventListener("click", () => openPeticionMailFor("Personeria"));
+  const b3 = $("btnMailContraloria"); if (b3) b3.addEventListener("click", () => openPeticionMailFor("Contraloria"));
+  const b4 = $("btnMailProcuraduria"); if (b4) b4.addEventListener("click", () => openPeticionMailFor("Procuraduria"));
+}
+
+// Abre mailto usando el texto del Derecho de Petición
+function openPeticionMailFor(dest) {
+  const c = getActiveCase();
+
+  const sel = $("peticionDest");
+  if (sel) sel.value = dest;
+  updatePeticionBox(true);
+
+  const toList = pickEmailsByDest(c, dest);
+  if (!toList.length) {
+    alert("No hay emails configurados para este destinatario. Agrégalos en el panel izquierdo y guarda el caso.");
+    return;
+  }
+
+  const destLabel = ({
+    Entidad: "Entidad",
+    Interventoria: "Interventoría/Supervisión",
+    Personeria: "Personería",
+    Contraloria: "Contraloría",
+    Procuraduria: "Procuraduría"
+  })[dest] || dest;
+
+  const subject = buildMailSubject(c, destLabel);
+  const body = $("peticionBox")?.value || buildDerechoPeticion();
+  const mailto = buildMailto(toList, subject, body);
+  window.location.href = mailto;
 }
 
 // ---------- Tipos/Fases ----------
 function renderTipoInfraSelector() {
   const sel = $("tipoInfra");
+  if (!sel) return;
   const tipos = metodologia.tipos_infraestructura || [];
   sel.innerHTML =
     `<option value="">— Selecciona —</option>` +
@@ -706,6 +1022,7 @@ function renderTipoInfraSelector() {
 
 function renderPhaseList() {
   const ul = $("phaseList");
+  if (!ul) return;
   ul.innerHTML = "";
   (metodologia.fases || []).forEach(f => {
     const li = document.createElement("li");
@@ -715,13 +1032,13 @@ function renderPhaseList() {
     ul.appendChild(li);
   });
 }
-
 function setActivePhase(id) {
-  [...$("phaseList").children].forEach(li => {
+  const ul = $("phaseList");
+  if (!ul) return;
+  [...ul.children].forEach(li => {
     li.classList.toggle("active", li.dataset.id === id);
   });
 }
-
 function openPhase(phaseId) {
   const phase = (metodologia.fases || []).find(f => f.id === phaseId);
   if (!phase) return;
@@ -754,7 +1071,7 @@ function renderPhase(phase) {
     <div class="badges">
       <span class="badge"><b>Entidad:</b> ${escapeHtml(c.caso.entidad || "—")}</span>
       <span class="badge"><b>Proceso:</b> ${escapeHtml(c.caso.procesoId || "—")}</span>
-      <span class="badge"><b>Contrato:</b> ${escapeHtml(c.caso.contratoNombre || "—")}</span>
+      <span class="badge"><b>Nombre:</b> ${escapeHtml(c.caso.contratoNombre || "—")}</span>
       <span class="badge"><b>Ubicación:</b> ${escapeHtml(c.caso.ubicacion || "—")}</span>
       <span class="badge"><b>Tipo:</b> ${escapeHtml(tipoNombre || "—")}</span>
       <span class="badge"><b>SECOP II:</b> ${
@@ -769,7 +1086,10 @@ function renderPhase(phase) {
   const checklistHtml = checklist.map(item => renderCheckItem(item)).join("");
   const flagsHtml = renderFlagsForPhase(phase, tipo);
 
-  $("phaseView").innerHTML = `
+  const view = $("phaseView");
+  if (!view) return;
+
+  view.innerHTML = `
     <h2>${escapeHtml(phase.nombre)}</h2>
     <p><b>Objetivo:</b> ${escapeHtml(phase.objetivo || "")}</p>
     ${badgesHtml}
@@ -850,10 +1170,10 @@ function getFilterValue(id) {
   const el = $(id);
   return (el?.value || "").trim().toLowerCase();
 }
-
 function renderLogs() {
   const c = getActiveCase();
   const ul = $("logList");
+  if (!ul) return;
   ul.innerHTML = "";
 
   const q = getFilterValue("searchLogs");
@@ -877,12 +1197,12 @@ function renderLogs() {
 function addHallazgo() {
   const c = getActiveCase();
 
-  const fase = $("hallazgoFase").value.trim();
-  const severidad = $("hallazgoSeveridad").value.trim();
-  const hecho = $("hallazgoHecho").value.trim();
-  const evidencia = $("hallazgoEvidencia").value.trim();
-  const impacto = $("hallazgoImpacto").value.trim();
-  const solicitud = $("hallazgoSolicitud").value.trim();
+  const fase = ($("hallazgoFase")?.value || "").trim();
+  const severidad = ($("hallazgoSeveridad")?.value || "").trim();
+  const hecho = ($("hallazgoHecho")?.value || "").trim();
+  const evidencia = ($("hallazgoEvidencia")?.value || "").trim();
+  const impacto = ($("hallazgoImpacto")?.value || "").trim();
+  const solicitud = ($("hallazgoSolicitud")?.value || "").trim();
 
   if (!fase || !hecho || !evidencia || !solicitud) {
     alert("Completa mínimo: Fase, Hecho, Evidencia y Solicitud.");
@@ -917,8 +1237,8 @@ function addHallazgo() {
     if (pendingHallazgoFiles.length) {
       await addEvidenceFiles(c, pendingHallazgoFiles, { type: "hallazgo", id: h.id }, `Fotos hallazgo ${h.id}`);
       pendingHallazgoFiles = [];
-      $("hallazgoPhotosInput").value = "";
-      $("hallazgoPhotosHint").textContent = `0 foto(s) seleccionada(s) para adjuntar al próximo hallazgo.`;
+      const inp = $("hallazgoPhotosInput"); if (inp) inp.value = "";
+      const hint = $("hallazgoPhotosHint"); if (hint) hint.textContent = `0 foto(s) seleccionada(s) para adjuntar al próximo hallazgo.`;
       renderEvidenceView();
       renderHistoryView();
     }
@@ -942,17 +1262,18 @@ function nextHallazgoId(c) {
 }
 
 function clearHallazgoForm(keepSeverity = false) {
-  $("hallazgoFase").value = "";
-  if (!keepSeverity) $("hallazgoSeveridad").value = "Observación";
-  $("hallazgoHecho").value = "";
-  $("hallazgoEvidencia").value = "";
-  $("hallazgoImpacto").value = "";
-  $("hallazgoSolicitud").value = "";
+  const f = $("hallazgoFase"); if (f) f.value = "";
+  const s = $("hallazgoSeveridad"); if (s && !keepSeverity) s.value = "Observación";
+  const h = $("hallazgoHecho"); if (h) h.value = "";
+  const e = $("hallazgoEvidencia"); if (e) e.value = "";
+  const i = $("hallazgoImpacto"); if (i) i.value = "";
+  const so = $("hallazgoSolicitud"); if (so) so.value = "";
 }
 
 function renderHallazgos() {
   const c = getActiveCase();
   const ul = $("hallazgoList");
+  if (!ul) return;
   ul.innerHTML = "";
 
   const q = getFilterValue("searchHallazgos");
@@ -1031,7 +1352,6 @@ function renderHallazgos() {
 function makeEvidenceId() {
   return `EV-${Math.random().toString(16).slice(2, 10)}-${Date.now()}`;
 }
-
 function countEvidenceLinked(c, link) {
   const evs = c.evidences || [];
   return evs.filter(e => (e.links || []).some(x => x.type === link.type && x.id === link.id)).length;
@@ -1154,9 +1474,8 @@ function buildEvidenceCSV() {
 }
 
 /* ==========================
-   NUEVO: Archivos por Documentos mínimos
+   Archivos por Documentos mínimos
    ========================== */
-
 function isAllowedDocFile(file) {
   const name = (file?.name || "").toLowerCase();
   const mime = (file?.type || "").toLowerCase();
@@ -1169,11 +1488,9 @@ function isAllowedDocFile(file) {
     mime.includes("officedocument.spreadsheetml");
   return okExt || okMime;
 }
-
 function makeDocFileId() {
   return `DF-${Math.random().toString(16).slice(2, 10)}-${Date.now()}`;
 }
-
 async function addDocFilesToDocument(c, docId, files) {
   c.doc_files = c.doc_files || [];
   const added = [];
@@ -1203,17 +1520,12 @@ async function addDocFilesToDocument(c, docId, files) {
   touchCase(c);
   saveAppState();
 
-  if (!added.length) {
-    alert("No se adjuntaron archivos. Tipos permitidos: PDF, Word, Excel.");
-  } else {
-    alert(`Archivo(s) adjuntado(s) a ${docId}: \n- ${added.join("\n- ")}`);
-  }
+  if (!added.length) alert("No se adjuntaron archivos. Tipos permitidos: PDF, Word, Excel.");
+  else alert(`Archivo(s) adjuntado(s) a ${docId}: \n- ${added.join("\n- ")}`);
 }
-
 function getDocFilesMetaByDocId(c, docId) {
   return (c.doc_files || []).filter(x => x.docId === docId);
 }
-
 async function openDocFile(meta) {
   const rec = await getDocBlob(meta.id);
   if (!rec?.blob) {
@@ -1223,7 +1535,6 @@ async function openDocFile(meta) {
   const url = URL.createObjectURL(rec.blob);
   window.open(url, "_blank");
 }
-
 async function downloadDocFile(meta) {
   const rec = await getDocBlob(meta.id);
   if (!rec?.blob) {
@@ -1232,7 +1543,6 @@ async function downloadDocFile(meta) {
   }
   downloadBlob(rec.blob, meta.name || "archivo");
 }
-
 async function deleteDocFile(metaId) {
   const c = getActiveCase();
   const meta = (c.doc_files || []).find(x => x.id === metaId);
@@ -1327,7 +1637,7 @@ function renderDocsView() {
                   </div>
                 </div>
               `).join("")}
-              ${files.length > 6 ? `<div class="small">Mostrando 6 de ${files.length}. (Sugerencia: elimina duplicados o exporta el caso para respaldo.)</div>` : ""}
+              ${files.length > 6 ? `<div class="small">Mostrando 6 de ${files.length}.</div>` : ""}
             </div>
           ` : `<div class="small">Sin archivos adjuntos.</div>`;
 
@@ -1443,7 +1753,6 @@ function renderDocsView() {
       await openDocFile(meta);
     });
   });
-
   [...view.querySelectorAll("button[data-docdl]")].forEach(btn => {
     btn.addEventListener("click", async () => {
       const id = btn.getAttribute("data-docdl");
@@ -1453,7 +1762,6 @@ function renderDocsView() {
       await downloadDocFile(meta);
     });
   });
-
   [...view.querySelectorAll("button[data-docdel]")].forEach(btn => {
     btn.addEventListener("click", async () => {
       const id = btn.getAttribute("data-docdel");
@@ -1519,13 +1827,11 @@ function computeRiskScore() {
 
   return Math.max(0, Math.min(100, Math.round(score)));
 }
-
 function riskLevel(score) {
   if (score >= 70) return "Alto";
   if (score >= 40) return "Medio";
   return "Bajo";
 }
-
 function buildRiskReasons() {
   const c = getActiveCase();
   const reasons = [];
@@ -1543,13 +1849,11 @@ function buildRiskReasons() {
   reasons.push(`Archivos adjuntos a documentos mínimos: ${(c.doc_files||[]).length}.`);
   return reasons;
 }
-
 function riskRecommendation(level) {
   if (level === "Alto") return "Priorizar acciones inmediatas: derecho de petición, exigir publicación/soportes en SECOP II, y (si hay alertas críticas) remitir informe a Personería/Contraloría/Procuraduría.";
   if (level === "Medio") return "Completar documentos mínimos y checklist; formalizar solicitudes; registrar hallazgos con evidencia. Escalar si aparecen alertas críticas o patrones repetidos.";
   return "Continuar monitoreo y trazabilidad; completar checklist y evidencias. Registrar y solicitar aclaraciones cuando existan inconsistencias.";
 }
-
 function buildRiskSummaryTxt() {
   const c = getActiveCase();
   const score = computeRiskScore();
@@ -1563,7 +1867,7 @@ function buildRiskSummaryTxt() {
   lines.push(`Caso: ${c.nombre}`);
   lines.push(`Entidad: ${c.caso.entidad || "—"}`);
   lines.push(`Proceso/ID: ${c.caso.procesoId || "—"}`);
-  lines.push(`Contrato: ${c.caso.contratoNombre || "—"}`);
+  lines.push(`Nombre proceso/contrato: ${c.caso.contratoNombre || "—"}`);
   lines.push(`Municipio/Departamento: ${c.caso.ubicacion || "—"}`);
   lines.push(`Tipo: ${getTipoNombre(c.caso.tipoInfra || "") || "—"}`);
   lines.push(`SECOP II: ${c.caso.secopUrl || "—"}`);
@@ -1617,12 +1921,12 @@ function buildDerechoPeticion() {
   lines.push("Referencia del contrato/proceso:");
   lines.push(`- Entidad: ${entidad}`);
   lines.push(`- Proceso/ID: ${proceso}`);
-  lines.push(`- Nombre del contrato: ${contrato}`);
+  lines.push(`- Nombre del proceso/contrato: ${contrato}`);
   lines.push(`- Tipo de obra: ${tipo}`);
   lines.push(`- Municipio/Departamento: ${ubic}`);
   lines.push(`- Enlace SECOP II: ${secop}`);
   lines.push("");
-  lines.push("Respetuosamente, en ejercicio del derecho fundamental de petición, solicito información y aclaraciones relacionadas con la ejecución y/o liquidación del contrato referido, con el fin de ejercer control social y verificar la transparencia y correcta inversión de recursos públicos.");
+  lines.push("Respetuosamente, en ejercicio del derecho fundamental de petición, solicito información y aclaraciones relacionadas con el contrato/proceso referido, con el fin de ejercer control social y verificar la transparencia y correcta inversión de recursos públicos.");
   lines.push("");
 
   if (docsFaltantes.length) {
@@ -1651,7 +1955,7 @@ function buildDerechoPeticion() {
   const docFilesCount = (c.doc_files||[]).length;
   if (docFilesCount) {
     lines.push("Anexos ciudadanos (archivos adjuntos en la app):");
-    lines.push(`- Se adjuntaron ${docFilesCount} archivo(s) vinculados a documentos mínimos (Pxx/Cxx/Exx/Lxx).`);
+    lines.push(`- Se adjuntaron ${docFilesCount} archivo(s) vinculados a documentos mínimos.`);
     lines.push("");
   }
 
@@ -1682,7 +1986,6 @@ function saludoDestinatario(dest, entidad) {
     default: return `Señores\n${entidad}\nCiudad`;
   }
 }
-
 function filterHallazgosBy(filtro) {
   const c = getActiveCase();
   const hs = c.hallazgos || [];
@@ -1690,7 +1993,6 @@ function filterHallazgosBy(filtro) {
   if (filtro === "alertas") return hs.filter(h => h.severidad === "Alerta" || h.severidad === "Alerta crítica");
   return hs;
 }
-
 function listDocsFaltantes() {
   const c = getActiveCase();
   const tipo = c.caso.tipoInfra || "";
@@ -1711,7 +2013,6 @@ function updateInformeBox(forceGen = false) {
   if (!forceGen && box.value.trim()) return;
   box.value = buildInformeDestinatario();
 }
-
 function buildInformeDestinatario() {
   const c = getActiveCase();
   const dest = $("informeDest")?.value || "Entidad";
@@ -1742,7 +2043,7 @@ function buildInformeDestinatario() {
   lines.push(`- Caso: ${c.nombre}`);
   lines.push(`- Entidad: ${entidad}`);
   lines.push(`- Proceso/ID: ${proceso}`);
-  lines.push(`- Nombre del contrato: ${contrato}`);
+  lines.push(`- Nombre del proceso/contrato: ${contrato}`);
   lines.push(`- Tipo de obra: ${tipo}`);
   lines.push(`- Municipio/Departamento: ${ubic}`);
   lines.push(`- Enlace SECOP II: ${secop}`);
@@ -1797,7 +2098,6 @@ function buildInformeDestinatario() {
 
   return lines.join("\n");
 }
-
 function introPorDest(dest, enfoque, level, score) {
   const base = {
     tecnico: "Este informe presenta verificación documental y trazabilidad de hechos/evidencias (SECOP II y soportes).",
@@ -1815,7 +2115,6 @@ function introPorDest(dest, enfoque, level, score) {
 
   return `${base} Nivel de riesgo orientativo: ${level} (${score}/100). ${extra}`;
 }
-
 function recomendacionesPorDest(dest, level) {
   const recBase = {
     Alto: "Dado el nivel alto, se recomienda respuesta prioritaria, revisión integral y trazabilidad de cambios/pagos, y garantizar entrega de soportes.",
@@ -1836,9 +2135,10 @@ function recomendacionesPorDest(dest, level) {
 
 // ---------- Informe preliminar ----------
 function updateReportBox() {
-  $("reportBox").value = buildPreliminaryReport();
+  const box = $("reportBox");
+  if (!box) return;
+  box.value = buildPreliminaryReport();
 }
-
 function buildPreliminaryReport() {
   const c = getActiveCase();
   const tipoNombre = getTipoNombre(c.caso.tipoInfra || "");
@@ -1854,7 +2154,7 @@ function buildPreliminaryReport() {
   lines.push(`- Caso: ${c.nombre}`);
   lines.push(`- Entidad: ${c.caso.entidad || "—"}`);
   lines.push(`- Proceso/ID: ${c.caso.procesoId || "—"}`);
-  lines.push(`- Nombre del contrato: ${c.caso.contratoNombre || "—"}`);
+  lines.push(`- Nombre del proceso/contrato: ${c.caso.contratoNombre || "—"}`);
   lines.push(`- Municipio/Departamento: ${c.caso.ubicacion || "—"}`);
   lines.push(`- Tipo de obra: ${tipoNombre || "—"}`);
   lines.push(`- Enlace SECOP II: ${c.caso.secopUrl || "—"}`);
@@ -1931,18 +2231,14 @@ function exportReportToPDF() {
       h1{ font-size: 18px; margin:0 0 10px; }
       .meta{ font-size: 12px; color:#333; margin-bottom: 16px; }
       pre{ white-space: pre-wrap; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.35; }
-      @media print{
-        body{ margin: 12mm; }
-      }
+      @media print{ body{ margin: 12mm; } }
     </style>
   </head>
   <body>
     <h1>${escapeHtml(title)}</h1>
     <div class="meta">Generado por Veeduría Forense (PWA) · ${escapeHtml(new Date().toLocaleString())}</div>
     <pre>${escapeHtml(reportText)}</pre>
-    <script>
-      setTimeout(()=>{ window.print(); }, 250);
-    </script>
+    <script> setTimeout(()=>{ window.print(); }, 250); </script>
   </body>
   </html>`;
 
@@ -1973,7 +2269,6 @@ function computeOverallProgress() {
   const percent = total ? Math.round((done / total) * 100) : 0;
   return { total, done, percent };
 }
-
 function computePhaseProgressByItems(items) {
   const c = getActiveCase();
   const ids = (items || []).map(it => it.id);
@@ -1982,7 +2277,6 @@ function computePhaseProgressByItems(items) {
   const percent = total ? Math.round((done / total) * 100) : 0;
   return { total, done, percent };
 }
-
 function countHallazgos() {
   const c = getActiveCase();
   const counts = { obs: 0, alerta: 0, critica: 0 };
@@ -2005,7 +2299,6 @@ function buildHallazgosCSV() {
   });
   return rows.map(r => r.map(csvEscape).join(",")).join("\n");
 }
-
 function buildDocsCSV() {
   const c = getActiveCase();
   const docs = getDocsForSelectedType();
@@ -2019,7 +2312,6 @@ function buildDocsCSV() {
   });
   return rows.map(r => r.map(csvEscape).join(",")).join("\n");
 }
-
 function csvEscape(v) {
   const s = String(v ?? "");
   if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
@@ -2058,7 +2350,6 @@ function renderHistoryView() {
 
   view.innerHTML = rows;
 }
-
 function buildHistoryCSV() {
   const c = getActiveCase();
   const headers = ["fecha_iso", "fecha_local", "usuario", "accion", "campo", "de", "a", "nota"];
@@ -2078,387 +2369,164 @@ function buildHistoryCSV() {
   return rows.map(r => r.map(csvEscape).join(",")).join("\n");
 }
 
-// ---------- Export/Import JSON (incluye fotos + archivos docs) ----------
-function normalizeProcesoId(pid) {
-  return String(pid || "").trim().toLowerCase().replace(/\s+/g, "");
-}
-function findCaseByProcesoId(procesoId) {
-  const key = normalizeProcesoId(procesoId);
-  if (!key) return null;
-  return appState.cases.find(c => normalizeProcesoId(c.caso?.procesoId) === key) || null;
-}
-
-async function buildExportPayloadForCase(c) {
-  // evidencias (fotos)
-  const evidences = c.evidences || [];
-  const evidence_data = [];
-  for (const e of evidences) {
-    const rec = await getEvidenceBlob(e.id);
-    if (!rec?.blob) continue;
-    const base64 = await blobToBase64(rec.blob);
-    evidence_data.push({
-      id: e.id,
-      caseId: c.id,
-      name: e.name,
-      mime: e.mime,
-      size: e.size,
-      ts: e.ts,
-      note: e.note || "",
-      links: e.links || [],
-      base64
-    });
-  }
-
-  // archivos de documentos mínimos
-  const doc_files_meta = c.doc_files || [];
-  const doc_file_data = [];
-  for (const f of doc_files_meta) {
-    const rec = await getDocBlob(f.id);
-    if (!rec?.blob) continue;
-    const base64 = await blobToBase64(rec.blob);
-    doc_file_data.push({
-      id: f.id,
-      caseId: c.id,
-      docId: f.docId,
-      name: f.name,
-      mime: f.mime,
-      size: f.size,
-      ts: f.ts,
-      base64
-    });
-  }
-
-  return {
-    exportado_en: new Date().toISOString(),
-    formato: "veeduria_case_v4",
-    metodologia: { titulo: metodologia.titulo, version: metodologia.version },
-    case_meta: { id: c.id, nombre: c.nombre, creado_en: c.creado_en, actualizado_en: c.actualizado_en },
-    caso: c.caso, // incluye contratoNombre
-    checks: c.checks,
-    logs: c.logs,
-    docs: c.docs,
-    hallazgos: c.hallazgos,
-    history: c.history,
-    evidences_meta: evidences,
-    evidence_data,
-    doc_files_meta,
-    doc_file_data,
-    riesgo: { score: computeRiskScore(), level: riskLevel(computeRiskScore()) },
-    informe_preliminar: buildPreliminaryReport()
-  };
-}
+/* =========================================================
+   Export/Import JSON COMPLETO (incluye fotos + archivos docs)
+   ========================================================= */
 
 async function exportActiveCaseJSON() {
   const c = getActiveCase();
-  const payload = await buildExportPayloadForCase(c);
-  downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }), `caso_${safeFileName(c.nombre)}.json`);
+  const payload = await buildExportPayloadForCases([c]);
+  const filename = `caso_${safeFileName(c.nombre)}_${new Date().toISOString().slice(0,10)}.json`;
+  downloadText(JSON.stringify(payload, null, 2), filename);
 }
 
 async function exportAllCasesJSON() {
-  const payload = {
-    exportado_en: new Date().toISOString(),
-    formato: "veeduria_multi_v4",
-    metodologia: { titulo: metodologia.titulo, version: metodologia.version },
-    userName: appState.userName || "",
-    cases: []
-  };
+  const payload = await buildExportPayloadForCases(appState.cases || []);
+  const filename = `veeduria_todos_los_casos_${new Date().toISOString().slice(0,10)}.json`;
+  downloadText(JSON.stringify(payload, null, 2), filename);
+}
 
-  for (const c of appState.cases) {
-    payload.cases.push(await buildExportPayloadForCase(c));
+async function buildExportPayloadForCases(cases) {
+  const outCases = [];
+  const evidenceBlobs = []; // { id, caseId, name, mime, base64 }
+  const docBlobs = [];      // { id, caseId, docId, name, mime, base64 }
+
+  for (const c of (cases || [])) {
+    // Copia del caso (sin blobs)
+    outCases.push(JSON.parse(JSON.stringify(c)));
+
+    // Evidencias
+    try {
+      const metas = (c.evidences || []);
+      for (const m of metas) {
+        const rec = await getEvidenceBlob(m.id);
+        if (!rec?.blob) continue;
+        const b64 = await blobToBase64(rec.blob);
+        evidenceBlobs.push({
+          id: m.id,
+          caseId: c.id,
+          name: m.name || rec.name || "",
+          mime: m.mime || rec.mime || "application/octet-stream",
+          base64: b64
+        });
+      }
+    } catch {}
+
+    // Documentos adjuntos
+    try {
+      const metas = (c.doc_files || []);
+      for (const m of metas) {
+        const rec = await getDocBlob(m.id);
+        if (!rec?.blob) continue;
+        const b64 = await blobToBase64(rec.blob);
+        docBlobs.push({
+          id: m.id,
+          caseId: c.id,
+          docId: m.docId || rec.docId || "",
+          name: m.name || rec.name || "",
+          mime: m.mime || rec.mime || "application/octet-stream",
+          base64: b64
+        });
+      }
+    } catch {}
   }
 
-  downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }), "todos_los_casos_veeduria.json");
+  return {
+    schema: "veeduria_forense_export_v1",
+    exported_at: new Date().toISOString(),
+    app: { storage_key: STORAGE_KEY },
+    userName: appState.userName || "",
+    activeCaseId: appState.activeCaseId || "",
+    cases: outCases,
+    evidence_blobs: evidenceBlobs,
+    doc_blobs: docBlobs
+  };
 }
 
 async function handleImportFile(e) {
-  const file = e.target.files?.[0];
+  const file = (e.target.files || [])[0];
   if (!file) return;
+
   try {
     const text = await file.text();
     const data = JSON.parse(text);
 
-    // Multi v4
-    if (data?.formato === "veeduria_multi_v4" && Array.isArray(data.cases)) {
-      let mergedCount = 0;
-      let addedCount = 0;
-
-      for (const x of data.cases) {
-        const imp = await convertExportToCaseV4(x);
-        const existing = findCaseByProcesoId(imp.caso?.procesoId || "");
-        if (existing) {
-          mergeCases(existing, imp, "Import multi v4");
-          mergedCount++;
-        } else {
-          appState.cases.unshift(imp);
-          addedCount++;
-        }
-      }
-
-      appState.activeCaseId = appState.cases[0].id;
-      saveAppState();
-      loadActiveCaseToUI();
-      alert(`Importación finalizada. Fusionados: ${mergedCount}. Agregados: ${addedCount}.`);
+    if (!data || (!Array.isArray(data.cases) && !Array.isArray(data))) {
+      alert("Archivo inválido. Debe ser un JSON exportado desde esta app.");
+      e.target.value = "";
       return;
     }
 
-    // Single v4
-    if (data?.formato === "veeduria_case_v4") {
-      const imp = await convertExportToCaseV4(data);
-      const existing = findCaseByProcesoId(imp.caso?.procesoId || "");
-      if (existing) {
-        mergeCases(existing, imp, "Import single v4");
-        appState.activeCaseId = existing.id;
+    const incomingCases = Array.isArray(data.cases) ? data.cases : data;
+    const evBlobs = Array.isArray(data.evidence_blobs) ? data.evidence_blobs : [];
+    const docBlobs = Array.isArray(data.doc_blobs) ? data.doc_blobs : [];
+
+    // Importa/mezcla casos:
+    // - si existe mismo id, lo reemplaza
+    // - si no existe, lo agrega
+    for (const inc of incomingCases) {
+      if (!inc || !inc.id) continue;
+
+      // robustez estructura mínima
+      if (!inc.caso) inc.caso = {};
+      if (!Array.isArray(inc.history)) inc.history = [];
+      if (!Array.isArray(inc.evidences)) inc.evidences = [];
+      if (!Array.isArray(inc.doc_files)) inc.doc_files = [];
+      if (!inc.caso.emails || typeof inc.caso.emails !== "object") {
+        inc.caso.emails = { entidad: [], personeria: [], contraloria: [], procuraduria: [] };
+      }
+      ["entidad","personeria","contraloria","procuraduria"].forEach(k => {
+        if (!Array.isArray(inc.caso.emails[k])) inc.caso.emails[k] = [];
+      });
+
+      const idx = (appState.cases || []).findIndex(x => x.id === inc.id);
+      if (idx >= 0) {
+        appState.cases[idx] = inc;
       } else {
-        appState.cases.unshift(imp);
-        appState.activeCaseId = imp.id;
-      }
-      saveAppState();
-      loadActiveCaseToUI();
-      alert(existing ? "Caso importado y fusionado por Proceso ID." : "Caso importado.");
-      return;
-    }
-
-    // Compatibilidad: v3 antiguo (sin doc_files)
-    if (data?.formato === "veeduria_case_v3" || (data?.formato === "veeduria_multi_v3")) {
-      alert("Este archivo es v3 (antiguo). La app actual soporta v4 (incluye archivos por documentos). Exporta de nuevo desde la versión actual para incluir adjuntos.\n\nAun así, se intentará importar lo básico.");
-      if (data?.formato === "veeduria_case_v3") {
-        const imp = await convertExportToCaseV3_Compat(data);
-        appState.cases.unshift(imp);
-        appState.activeCaseId = imp.id;
-        saveAppState();
-        loadActiveCaseToUI();
-        return;
-      }
-      if (data?.formato === "veeduria_multi_v3" && Array.isArray(data.cases)) {
-        for (const x of data.cases) {
-          const imp = await convertExportToCaseV3_Compat(x);
-          appState.cases.unshift(imp);
-        }
-        appState.activeCaseId = appState.cases[0].id;
-        saveAppState();
-        loadActiveCaseToUI();
-        return;
+        appState.cases.unshift(inc);
       }
     }
 
-    throw new Error("Formato de importación no reconocido (usa export v4).");
+    // Restaura blobs de evidencias
+    for (const b of evBlobs) {
+      if (!b?.id || !b?.caseId || !b?.base64) continue;
+      try {
+        const blob = base64ToBlob(b.base64, b.mime || "application/octet-stream");
+        await putEvidenceBlob({ id: b.id, caseId: b.caseId, mime: b.mime, name: b.name, blob });
+      } catch {}
+    }
+
+    // Restaura blobs de documentos adjuntos
+    for (const b of docBlobs) {
+      if (!b?.id || !b?.caseId || !b?.base64) continue;
+      try {
+        const blob = base64ToBlob(b.base64, b.mime || "application/octet-stream");
+        await putDocBlob({ id: b.id, caseId: b.caseId, docId: b.docId || "", name: b.name, mime: b.mime, blob });
+      } catch {}
+    }
+
+    // Ajusta userName si viene
+    if (typeof data.userName === "string" && data.userName.trim()) {
+      appState.userName = data.userName.trim();
+    }
+
+    // Define caso activo: si el import trae activeCaseId válido, úsalo; si no, deja el actual; si no existe, toma el primero
+    const importedActive = data.activeCaseId;
+    if (importedActive && appState.cases.some(c => c.id === importedActive)) {
+      appState.activeCaseId = importedActive;
+    } else if (!appState.activeCaseId || !appState.cases.some(c => c.id === appState.activeCaseId)) {
+      appState.activeCaseId = appState.cases[0]?.id || "";
+    }
+
+    saveAppState();
+    loadActiveCaseToUI();
+    alert("Importación completada.");
   } catch (err) {
-    alert(`No se pudo importar: ${err.message || err}`);
+    console.error(err);
+    alert("No se pudo importar. Verifica que el archivo sea un JSON válido exportado desde la app.");
   } finally {
-    $("fileImport").value = "";
+    e.target.value = "";
   }
-}
-
-async function convertExportToCaseV4(x) {
-  const now = new Date().toISOString();
-  const meta = x.case_meta || {};
-  const c = makeEmptyCase(meta.nombre || "Caso importado");
-
-  c.id = `C-${Math.random().toString(16).slice(2, 10)}-${Date.now()}`;
-  c.nombre = meta.nombre || "Caso importado";
-  c.creado_en = meta.creado_en || now;
-  c.actualizado_en = meta.actualizado_en || now;
-  c.caso = x.caso || c.caso;
-  if (typeof c.caso.contratoNombre !== "string") c.caso.contratoNombre = ""; // robustez
-  c.checks = x.checks || {};
-  c.logs = x.logs || [];
-  c.docs = x.docs || {};
-  c.hallazgos = x.hallazgos || [];
-  c.history = Array.isArray(x.history) ? x.history : [];
-  c.evidences = Array.isArray(x.evidences_meta) ? x.evidences_meta : [];
-  c.doc_files = Array.isArray(x.doc_files_meta) ? x.doc_files_meta : [];
-
-  // Restaurar blobs de evidencias (fotos)
-  const evData = Array.isArray(x.evidence_data) ? x.evidence_data : [];
-  for (const ed of evData) {
-    const blob = base64ToBlob(ed.base64 || "", ed.mime || "image/jpeg");
-    await putEvidenceBlob({ id: ed.id, caseId: c.id, mime: ed.mime, name: ed.name, blob });
-    const idx = c.evidences.findIndex(z => z.id === ed.id);
-    const metaRec = {
-      id: ed.id,
-      caseId: c.id,
-      ts: ed.ts || now,
-      name: ed.name || `foto_${ed.id}.jpg`,
-      mime: ed.mime || "image/jpeg",
-      size: ed.size || 0,
-      note: ed.note || "",
-      links: ed.links || []
-    };
-    if (idx >= 0) c.evidences[idx] = metaRec;
-    else c.evidences.unshift(metaRec);
-  }
-
-  // Restaurar blobs de archivos por documento mínimo
-  const dfData = Array.isArray(x.doc_file_data) ? x.doc_file_data : [];
-  for (const fd of dfData) {
-    const blob = base64ToBlob(fd.base64 || "", fd.mime || "application/octet-stream");
-    await putDocBlob({ id: fd.id, caseId: c.id, docId: fd.docId, name: fd.name, mime: fd.mime, blob });
-    const idx = c.doc_files.findIndex(z => z.id === fd.id);
-    const metaRec = {
-      id: fd.id,
-      caseId: c.id,
-      docId: fd.docId,
-      ts: fd.ts || now,
-      name: fd.name || `archivo_${fd.id}`,
-      mime: fd.mime || "application/octet-stream",
-      size: fd.size || 0
-    };
-    if (idx >= 0) c.doc_files[idx] = metaRec;
-    else c.doc_files.unshift(metaRec);
-  }
-
-  if (!c.history.length) {
-    c.history.push({ ts: now, user: "Sistema", action: "IMPORTAR", field: "case", from: "", to: c.nombre, note: "Importado v4" });
-  }
-
-  return c;
-}
-
-// Compatibilidad mínima v3 (solo fotos)
-async function convertExportToCaseV3_Compat(x) {
-  const now = new Date().toISOString();
-  const meta = x.case_meta || {};
-  const c = makeEmptyCase(meta.nombre || "Caso importado");
-
-  c.id = `C-${Math.random().toString(16).slice(2, 10)}-${Date.now()}`;
-  c.nombre = meta.nombre || "Caso importado";
-  c.creado_en = meta.creado_en || now;
-  c.actualizado_en = meta.actualizado_en || now;
-  c.caso = x.caso || c.caso;
-  if (typeof c.caso.contratoNombre !== "string") c.caso.contratoNombre = ""; // robustez
-  c.checks = x.checks || {};
-  c.logs = x.logs || [];
-  c.docs = x.docs || {};
-  c.hallazgos = x.hallazgos || [];
-  c.history = Array.isArray(x.history) ? x.history : [];
-  c.evidences = Array.isArray(x.evidences_meta) ? x.evidences_meta : [];
-  c.doc_files = [];
-
-  const evData = Array.isArray(x.evidence_data) ? x.evidence_data : [];
-  for (const ed of evData) {
-    const blob = base64ToBlob(ed.base64 || "", ed.mime || "image/jpeg");
-    await putEvidenceBlob({ id: ed.id, caseId: c.id, mime: ed.mime, name: ed.name, blob });
-  }
-
-  if (!c.history.length) {
-    c.history.push({ ts: now, user: "Sistema", action: "IMPORTAR", field: "case", from: "", to: c.nombre, note: "Importado v3 compat" });
-  }
-  return c;
-}
-
-// ---------- Fusión ----------
-function normalizeTextKey(s) {
-  return String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
-}
-function hallazgoSignature(h) {
-  return `${h.fase}|${h.severidad}|${normalizeTextKey(h.hecho)}|${normalizeTextKey(h.evidencia)}|${normalizeTextKey(h.solicitud)}`;
-}
-function pickBetterEstado(a, b) {
-  const rank = { "disponible": 5, "solicitado": 4, "pendiente": 3, "no_disponible": 2, "no_aplica": 1 };
-  return (rank[b] ?? 0) > (rank[a] ?? 0) ? b : a;
-}
-
-function mergeCases(target, incoming, noteSource) {
-  const beforeCounts = { logs: (target.logs || []).length, hallazgos: (target.hallazgos || []).length, evid: (target.evidences||[]).length, docf: (target.doc_files||[]).length };
-
-  target.caso = target.caso || { secopUrl: "", entidad: "", procesoId: "", ubicacion: "", tipoInfra: "", contratoNombre: "" };
-  const fields = ["secopUrl", "entidad", "procesoId", "ubicacion", "tipoInfra", "contratoNombre"]; // <-- incluye contratoNombre
-  fields.forEach(f => {
-    const t = (target.caso[f] || "").trim();
-    const inc = (incoming.caso?.[f] || "").trim();
-    if (!t && inc) {
-      target.caso[f] = inc;
-      addHistory(target, "FUSIONAR", `caso.${f}`, "", inc, `Fuente: ${noteSource}`);
-    }
-  });
-
-  target.checks = target.checks || {};
-  const incChecks = incoming.checks || {};
-  Object.keys(incChecks).forEach(k => {
-    const prev = !!target.checks[k];
-    const next = prev || !!incChecks[k];
-    if (prev !== next) {
-      target.checks[k] = next;
-      addHistory(target, "FUSIONAR", `checks.${k}`, String(prev), String(next), `Fuente: ${noteSource}`);
-    }
-  });
-
-  target.docs = target.docs || {};
-  const incDocs = incoming.docs || {};
-  Object.keys(incDocs).forEach(id => {
-    const cur = target.docs[id] || { estado: "pendiente", evidencia: "" };
-    const inc = incDocs[id] || { estado: "pendiente", evidencia: "" };
-
-    const bestEstado = pickBetterEstado(cur.estado, inc.estado);
-    const bestEvid = (cur.evidencia || "").trim() ? cur.evidencia : inc.evidencia;
-
-    if (cur.estado !== bestEstado) addHistory(target, "FUSIONAR", `docs.${id}.estado`, cur.estado, bestEstado, `Fuente: ${noteSource}`);
-    if ((cur.evidencia || "").trim() === "" && (bestEvid || "").trim() !== "") addHistory(target, "FUSIONAR", `docs.${id}.evidencia`, "", shorten(bestEvid,120), `Fuente: ${noteSource}`);
-
-    target.docs[id] = { estado: bestEstado, evidencia: bestEvid || "" };
-  });
-
-  target.logs = target.logs || [];
-  const logSet = new Set(target.logs.map(l => normalizeTextKey(l.text)));
-  (incoming.logs || []).forEach(l => {
-    const key = normalizeTextKey(l.text);
-    if (!key) return;
-    if (!logSet.has(key)) {
-      target.logs.unshift(l);
-      logSet.add(key);
-    }
-  });
-
-  target.hallazgos = target.hallazgos || [];
-  const sigSet = new Set(target.hallazgos.map(h => hallazgoSignature(h)));
-  const existingIds = new Set(target.hallazgos.map(h => h.id));
-  (incoming.hallazgos || []).forEach(h => {
-    const sig = hallazgoSignature(h);
-    if (sigSet.has(sig)) return;
-    const clone = { ...h };
-    if (existingIds.has(clone.id)) clone.id = nextHallazgoId(target);
-    target.hallazgos.unshift(clone);
-    existingIds.add(clone.id);
-    sigSet.add(sig);
-  });
-
-  // Evidencias meta
-  target.evidences = target.evidences || [];
-  const keySet = new Set(target.evidences.map(e => `${e.name}|${e.size}|${e.ts}`));
-  (incoming.evidences || []).forEach(e => {
-    const key = `${e.name}|${e.size}|${e.ts}`;
-    if (keySet.has(key)) return;
-    target.evidences.unshift({ ...e, caseId: target.id });
-    keySet.add(key);
-  });
-
-  // Doc files meta
-  target.doc_files = target.doc_files || [];
-  const dfKeySet = new Set(target.doc_files.map(e => `${e.docId}|${e.name}|${e.size}|${e.ts}`));
-  (incoming.doc_files || []).forEach(f => {
-    const key = `${f.docId}|${f.name}|${f.size}|${f.ts}`;
-    if (dfKeySet.has(key)) return;
-    target.doc_files.unshift({ ...f, caseId: target.id });
-    dfKeySet.add(key);
-  });
-
-  target.history = (target.history || []).concat(Array.isArray(incoming.history) ? incoming.history : []).slice(0, 800);
-  addHistory(target, "FUSIONAR_CASO", "merge", "", "", `Fusionado por Proceso ID. Fuente: ${noteSource}`);
-
-  if (target.nombre?.startsWith("Caso")) {
-    const prevName = target.nombre;
-    target.nombre = deriveCaseNameFromFields(target);
-    if (prevName !== target.nombre) addHistory(target, "FUSIONAR", "case.nombre", prevName, target.nombre, "Nombre derivado tras fusión");
-  }
-
-  touchCase(target);
-
-  const afterCounts = { logs: (target.logs || []).length, hallazgos: (target.hallazgos || []).length, evid: (target.evidences||[]).length, docf: (target.doc_files||[]).length };
-  addHistory(target, "RESUMEN_FUSION", "merge.counts",
-    `logs:${beforeCounts.logs}, hallazgos:${beforeCounts.hallazgos}, evid:${beforeCounts.evid}, doc_files:${beforeCounts.docf}`,
-    `logs:${afterCounts.logs}, hallazgos:${afterCounts.hallazgos}, evid:${afterCounts.evid}, doc_files:${afterCounts.docf}`,
-    `Fuente: ${noteSource}`
-  );
 }
 
 // ---------- Utilidades ----------
@@ -2467,17 +2535,14 @@ function getTipoNombre(id) {
   const t = (metodologia.tipos_infraestructura || []).find(x => x.id === id);
   return t ? t.nombre : id;
 }
-
 function shorten(s, maxLen) {
   const str = String(s || "");
   if (str.length <= maxLen) return str;
   return str.slice(0, maxLen - 1) + "…";
 }
-
 function downloadText(text, filename) {
   downloadBlob(new Blob([text], { type: "text/plain;charset=utf-8" }), filename);
 }
-
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -2486,7 +2551,6 @@ function downloadBlob(blob, filename) {
   a.click();
   URL.revokeObjectURL(url);
 }
-
 async function copyText(text, okMsg) {
   try {
     await navigator.clipboard.writeText(text);
@@ -2501,7 +2565,6 @@ async function copyText(text, okMsg) {
     alert(okMsg);
   }
 }
-
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (m) => ({
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
@@ -2509,7 +2572,7 @@ function escapeHtml(s) {
 }
 function escapeAttr(s) { return escapeHtml(s).replace(/"/g, "&quot;"); }
 function cssEscape(value) {
-  return (window.CSS && CSS.escape) ? CSS.escape(value) : value.replace(/[^a-zA-Z0-9_-]/g, "\\$&");
+  return (window.CSS && CSS.escape) ? CSS.escape(value) : String(value).replace(/[^a-zA-Z0-9_-]/g, "\\$&");
 }
 function safeFileName(name) {
   return String(name || "caso")

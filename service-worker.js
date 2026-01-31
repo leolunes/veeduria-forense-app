@@ -1,4 +1,4 @@
-const CACHE_NAME = "veeduria-secopiauditoria-v6";
+const CACHE_NAME = "veeduria-secopiauditoria-v7";
 const CORE_ASSETS = [
   "./",
   "./index.html",

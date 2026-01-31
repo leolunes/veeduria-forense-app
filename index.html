@@ -76,14 +76,19 @@
       <h2>SECOP II (datos del caso)</h2>
 
       <label>Enlace del proceso (SECOP II)</label>
-      <input id="secopUrl" placeholder="https://..." />
+      <input id="secopUrl" placeholder="Pega aquí el link del proceso (después de iniciar sesión)" />
 
       <div class="row">
-        <button id="btnOpenSecop">Abrir SECOP II</button>
+        <button id="btnOpenSecop">Abrir proceso (link guardado)</button>
+        <button id="btnOpenSecopLogin">Abrir SECOP II (login)</button>
+      </div>
+
+      <div class="row">
         <button id="btnPickSecop">Elegir proceso desde SECOP II (login) y pegar enlace</button>
       </div>
+
       <div class="small">
-        Sugerencia: abre el proceso en SECOP II, descarga PDF/Word/Excel y luego adjúntalos en <b>Documentos mínimos</b> usando “Adjuntar archivo”.
+        Flujo recomendado: <b>1)</b> Abrir SECOP II (login) → <b>2)</b> Iniciar sesión → <b>3)</b> Abrir el proceso → <b>4)</b> Copiar el link → <b>5)</b> Pegar aquí.
       </div>
 
       <label>Entidad</label>
@@ -92,13 +97,49 @@
       <label>Número/ID del proceso</label>
       <input id="secopId" placeholder="Ej: LP-001-2026" />
 
+      <label>Nombre del proceso / contrato</label>
+      <input id="secopContrato" placeholder="Ej: Mejoramiento vía X / Construcción acueducto..." />
+
       <label>Municipio / Departamento</label>
-      <input id="secopUbicacion" placeholder="Ej: Floridablanca, Santander (o cualquier municipio de Colombia)" />
+      <input id="secopUbicacion" placeholder="Ej: Floridablanca, Santander" />
 
       <label>Tipo de obra</label>
       <select id="tipoInfra"></select>
 
       <button id="btnSaveCase">Guardar caso</button>
+
+      <hr />
+
+      <h2>Correos para correspondencia</h2>
+      <div class="small">
+        Puedes escribir <b>uno o varios</b> correos separados por coma, punto y coma o salto de línea.
+      </div>
+
+      <label>Emails de la Entidad (contratante)</label>
+      <textarea id="emailsEntidad" placeholder="correo1@entidad.gov.co, correo2@entidad.gov.co"></textarea>
+
+      <label>Emails Personería</label>
+      <textarea id="emailsPersoneria" placeholder="personeria@municipio.gov.co"></textarea>
+
+      <label>Emails Contraloría</label>
+      <textarea id="emailsContraloria" placeholder="contraloria@..."></textarea>
+
+      <label>Emails Procuraduría</label>
+      <textarea id="emailsProcuraduria" placeholder="procuraduria@..."></textarea>
+
+      <div class="row">
+        <button id="btnMailEntidad">Correo a Entidad</button>
+        <button id="btnMailPersoneria">Correo a Personería</button>
+      </div>
+      <div class="row">
+        <button id="btnMailContraloria">Correo a Contraloría</button>
+        <button id="btnMailProcuraduria">Correo a Procuraduría</button>
+      </div>
+      <div class="small">
+        Estos botones abren tu app de correo (Outlook/Gmail/etc.) con asunto y cuerpo prellenados usando el “Derecho de petición”.
+      </div>
+
+      <hr />
 
       <h2>Bitácora</h2>
       <label>Buscar en bitácora</label>
@@ -199,9 +240,14 @@
 
       <!-- TAB: DOCUMENTOS -->
       <section id="tab-documentos" class="tabPanel">
+        <div class="row">
+          <button id="btnOpenSecopFromDocs" class="btnSmall">Abrir SECOP II (proceso activo)</button>
+          <button id="btnCopySecopLink" class="btnSmall">Copiar link SECOP del caso</button>
+        </div>
+
         <h2>Documentos mínimos por tipo de obra</h2>
         <div class="small">
-          Marca el estado de cada documento. Adjunta archivos (PDF/Word/Excel) para que queden vinculados a <b>P01, C02, E04</b>, etc. Esto alimenta el “Riesgo del caso” y facilita solicitudes formales.
+          Marca el estado de cada documento. Adjunta archivos (PDF/Word/Excel) para que queden vinculados a <b>P01, C02, E04</b>, etc.
         </div>
 
         <label>Buscar en documentos</label>
@@ -217,7 +263,7 @@
       <section id="tab-evidencias" class="tabPanel">
         <h2>Evidencias (fotos) – Offline</h2>
         <div class="small">
-          Las fotos se guardan en el dispositivo (IndexedDB) y quedan disponibles sin internet. También se incluyen en el export JSON para restaurar en otro equipo (puede crecer el archivo).
+          Las fotos se guardan en el dispositivo (IndexedDB) y quedan disponibles sin internet. También se incluyen en el export JSON.
         </div>
 
         <label>Buscar evidencias</label>
@@ -248,7 +294,7 @@
       <section id="tab-peticion" class="tabPanel">
         <h2>Derecho de petición (generador)</h2>
         <div class="small">
-          Genera un texto formal con base en el caso y hallazgos. Recomendación: adjunta el export JSON/CSV como soporte.
+          Genera un texto formal con base en el caso y hallazgos. También puedes abrir correo prellenado.
         </div>
 
         <label>Destinatario</label>
@@ -274,6 +320,7 @@
           <button id="btnGenPeticion">Generar derecho de petición</button>
           <button id="btnCopyPeticion">Copiar</button>
           <button id="btnDownloadPeticionTxt">Descargar (.txt)</button>
+          <button id="btnEmailPeticion">Enviar por correo (mailto)</button>
         </div>
 
         <textarea id="peticionBox" readonly></textarea>
@@ -283,7 +330,7 @@
       <section id="tab-informes" class="tabPanel">
         <h2>Informes por destinatario</h2>
         <div class="small">
-          Cambia el enfoque del informe según el destinatario (Entidad / Contraloría / Personería / Procuraduría).
+          Cambia el enfoque del informe según el destinatario.
         </div>
 
         <label>Destinatario</label>
@@ -333,7 +380,7 @@
   </main>
 
   <footer class="foot small">
-    <span>Guía ciudadana (auditoría forense preventiva/detectiva) - SECOP II · PWA Offline · Multi-caso · Fusión por Proceso ID · Evidencias offline · PDF</span>
+    <span>Guía ciudadana (auditoría forense preventiva/detectiva) - SECOP II · PWA Offline · Multi-caso · Evidencias offline · PDF</span>
   </footer>
 
   <script src="app.js"></script>
